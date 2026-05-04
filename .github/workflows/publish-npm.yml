@@ -1,0 +1,56 @@
+name: publish-npm
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish-npm:
+    name: publish-npm
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+      - name: Set version from tag
+        # Strip leading 'v' from the tag (v0.0.1 → 0.0.1) and write to package.json
+        # without creating a git tag/commit. The tag IS the source of truth.
+        run: npm pkg set version="${GITHUB_REF_NAME#v}"
+
+      # No npm publish step until private npm registry is set up.
+      # Consumers install via git URL: "git+ssh://git@github.com/alessandrotesoro/laravel-shopify-flash.git#vX.Y.Z".
+      # When private registry lands, uncomment:
+      #
+      # - name: Publish
+      #   run: npm publish --access restricted
+      #   env:
+      #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Tag confirmation
+        run: |
+          echo "::notice title=npm publish::Tag ${GITHUB_REF_NAME} verified (typecheck + lint + test + build green). Consumers install via git URL until private registry is configured."

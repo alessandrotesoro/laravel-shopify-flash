@@ -1,0 +1,43 @@
+name: publish-composer
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish-composer:
+    name: publish-composer
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Validate composer.json
+        run: composer validate --strict
+
+      - name: Install composer dependencies
+        uses: ramsey/composer-install@v4
+
+      - name: Run tests
+        run: vendor/bin/pest --ci
+
+      # No Packagist publish step — distribution is via git VCS.
+      # Consumers add a `repositories` entry pointing at this repo and require
+      # `sematico/laravel-shopify-flash: ^0.0` (Composer reads the version
+      # from the tag directly; no `version` field in composer.json per the
+      # Composer schema docs).
+      - name: Tag confirmation
+        run: |
+          echo "::notice title=Composer publish::Tag ${GITHUB_REF_NAME} is now installable via git VCS as sematico/laravel-shopify-flash:${GITHUB_REF_NAME}"
