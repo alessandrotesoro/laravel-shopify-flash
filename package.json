@@ -36,7 +36,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome check js",
     "lint:fix": "biome check --write js",
-    "format": "biome format --write js"
+    "format": "biome format --write js",
+    "test": "vitest run"
   },
   "peerDependencies": {
     "@inertiajs/react": "^3.0.0",
@@ -47,10 +48,16 @@
     "@biomejs/biome": "^2.4.8",
     "@inertiajs/react": "^3.0.0",
     "@shopify/app-bridge-react": "^4.0.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.2.3",
+    "happy-dom": "^20.9.0",
     "react": "^19.0.0",
+    "react-dom": "^19.2.5",
     "tsup": "^8.3.5",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.5"
   },
   "engines": {
     "node": ">=20"
