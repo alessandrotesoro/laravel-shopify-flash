@@ -97,6 +97,40 @@ describe("<NoticesProvider /> + useNotices()", () => {
 		errorSpy.mockRestore();
 	});
 
+	it("add({ id }) replaces an existing notice with the same id in place", () => {
+		const { result } = renderHook(() => useNotices(), { wrapper });
+
+		act(() => {
+			result.current.add({ id: "stable", heading: "First", tone: "info" });
+			result.current.add({ id: "stable", heading: "Updated", tone: "warning" });
+		});
+
+		expect(result.current.items).toHaveLength(1);
+		expect(result.current.items[0]).toMatchObject({
+			id: "stable",
+			heading: "Updated",
+			tone: "warning",
+		});
+	});
+
+	it("removeByTone(tone) drops every notice of that tone", () => {
+		const { result } = renderHook(() => useNotices(), { wrapper });
+
+		act(() => {
+			result.current.critical({ heading: "Err A" });
+			result.current.critical({ heading: "Err B" });
+			result.current.success({ heading: "OK" });
+		});
+		expect(result.current.items).toHaveLength(3);
+
+		act(() => {
+			result.current.removeByTone("critical");
+		});
+
+		expect(result.current.items).toHaveLength(1);
+		expect(result.current.items[0]?.tone).toBe("success");
+	});
+
 	it("clear() removes a non-dismissable notice programmatically", () => {
 		const { result } = renderHook(() => useNotices(), { wrapper });
 
@@ -253,6 +287,49 @@ describe("<NoticesContainer />", () => {
 			banner.dispatchEvent(new Event("afterhide"));
 		});
 		expect(screen.getByTestId("count").textContent).toBe("0");
+	});
+
+	it("inline-onClick action runs its callback on click", () => {
+		const handler = vi.fn();
+
+		function Harness() {
+			const { add } = useNotices();
+			return (
+				<>
+					<button
+						type="button"
+						data-testid="add"
+						onClick={() => {
+							add({
+								heading: "Q",
+								tone: "warning",
+								actions: [{ label: "Run", onClick: handler }],
+							});
+						}}
+					>
+						add
+					</button>
+					<NoticesContainer />
+				</>
+			);
+		}
+
+		const { container } = render(
+			<NoticesProvider>
+				<Harness />
+			</NoticesProvider>,
+		);
+		act(() => {
+			screen.getByTestId("add").click();
+		});
+
+		const button = container.querySelector("s-button") as HTMLElement;
+		act(() => {
+			button.click();
+		});
+
+		expect(handler).toHaveBeenCalledTimes(1);
+		expect(visitSpy).not.toHaveBeenCalled();
 	});
 
 	it("dismissible: false renders no `dismissible` attribute", () => {

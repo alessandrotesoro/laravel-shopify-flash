@@ -11,7 +11,7 @@
 // placed anywhere underneath.
 
 import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from "react";
-import type { BannerPayload } from "../types";
+import type { BannerPayload, Tone } from "../types";
 
 /**
  * A notice is a {@link BannerPayload} with a client-generated id assigned at
@@ -26,6 +26,7 @@ interface NoticesContextValue {
 	items: Notice[];
 	add: (payload: BannerPayload) => string;
 	remove: (id: string) => void;
+	removeByTone: (tone: Tone) => void;
 	clear: () => void;
 }
 
@@ -49,8 +50,16 @@ export function NoticesProvider({ children }: NoticesProviderProps) {
 	const [items, setItems] = useState<Notice[]>([]);
 
 	const add = useCallback((payload: BannerPayload): string => {
-		const id = generateId();
-		setItems((prev) => [...prev, { ...payload, id }]);
+		const id = payload.id ?? generateId();
+		setItems((prev) => {
+			const existingIndex = prev.findIndex((notice) => notice.id === id);
+			if (existingIndex >= 0) {
+				const next = [...prev];
+				next[existingIndex] = { ...payload, id };
+				return next;
+			}
+			return [...prev, { ...payload, id }];
+		});
 		return id;
 	}, []);
 
@@ -58,13 +67,17 @@ export function NoticesProvider({ children }: NoticesProviderProps) {
 		setItems((prev) => prev.filter((notice) => notice.id !== id));
 	}, []);
 
+	const removeByTone = useCallback((tone: Tone): void => {
+		setItems((prev) => prev.filter((notice) => notice.tone !== tone));
+	}, []);
+
 	const clear = useCallback((): void => {
 		setItems([]);
 	}, []);
 
 	const value = useMemo<NoticesContextValue>(
-		() => ({ items, add, remove, clear }),
-		[items, add, remove, clear],
+		() => ({ items, add, remove, removeByTone, clear }),
+		[items, add, remove, removeByTone, clear],
 	);
 
 	return <NoticesContext.Provider value={value}>{children}</NoticesContext.Provider>;

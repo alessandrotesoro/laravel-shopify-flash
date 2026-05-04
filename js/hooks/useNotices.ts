@@ -7,7 +7,7 @@
 
 import { useCallback } from "react";
 import { type Notice, useNoticesContext } from "../components/NoticesProvider";
-import type { BannerPayload } from "../types";
+import type { BannerPayload, Tone } from "../types";
 
 type ToneOmitted = Omit<BannerPayload, "tone">;
 
@@ -15,6 +15,7 @@ export interface UseNoticesReturn {
 	items: Notice[];
 	add: (payload: BannerPayload) => string;
 	remove: (id: string) => void;
+	removeByTone: (tone: Tone) => void;
 	clear: () => void;
 	info: (payload: ToneOmitted) => string;
 	success: (payload: ToneOmitted) => string;
@@ -28,7 +29,7 @@ export interface UseNoticesReturn {
  * Throws when called outside a `<NoticesProvider />`.
  */
 export function useNotices(): UseNoticesReturn {
-	const { items, add, remove, clear } = useNoticesContext();
+	const { items, add, remove, removeByTone, clear } = useNoticesContext();
 
 	const info = useCallback(
 		(payload: ToneOmitted): string => add({ ...payload, tone: "info" }),
@@ -47,7 +48,7 @@ export function useNotices(): UseNoticesReturn {
 		[add],
 	);
 
-	return { items, add, remove, clear, info, success, warning, critical };
+	return { items, add, remove, removeByTone, clear, info, success, warning, critical };
 }
 
 export type { Notice };

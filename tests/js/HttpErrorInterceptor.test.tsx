@@ -137,10 +137,12 @@ describe("<HttpErrorInterceptor />", () => {
 
 		fireError(
 			makeResponseError(500, {
-				banner: {
-					heading: "Boom",
-					tone: "critical",
-					description: "Server exploded.",
+				notice: {
+					banner: {
+						heading: "Boom",
+						tone: "critical",
+						description: "Server exploded.",
+					},
 				},
 			}),
 		);

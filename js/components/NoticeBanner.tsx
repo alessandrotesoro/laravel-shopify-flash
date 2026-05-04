@@ -129,9 +129,23 @@ function NoticeBannerAction({ action }: { action: BannerAction }) {
 		);
 	}
 
-	// Named-handler banner actions are not wired in U6 — banners typically use
-	// link actions. Render the button as a no-op so the structure is still
-	// visible; consumers wanting handler-driven banner actions can extend later.
+	if ("onClick" in action) {
+		const onClick = action.onClick;
+		return (
+			<s-button
+				slot="secondary-actions"
+				variant="secondary"
+				onClick={() => {
+					void onClick();
+				}}
+			>
+				{action.label}
+			</s-button>
+		);
+	}
+
+	// Named-handler banner actions are reserved for future wiring (parity with
+	// toasts). Render as a no-op so the structure stays visible.
 	return (
 		<s-button slot="secondary-actions" variant="secondary">
 			{action.label}

@@ -31,12 +31,22 @@ export type ToastAction =
 	| { label: string; handler: string; params?: Record<string, unknown> };
 
 /**
- * Action attached to a banner — matches `Sematico\ShopifyFlash\Payloads\BannerAction`.
+ * Action attached to a banner.
  *
- * Structurally identical to {@link ToastAction}; PHP-side validation differs
- * (banner link URLs are origin-checked at construction time).
+ * Three variants:
+ * - link form: `{ label, url }` — host wraps the click to call `router.visit(url)`.
+ *   Emittable from PHP and JS.
+ * - named-handler form: `{ label, handler, params? }` — `handler` is the string name
+ *   of a client-side function (currently not wired for banners; reserved for parity
+ *   with toasts). Emittable from PHP and JS.
+ * - inline-onClick form: `{ label, onClick }` — JS-only. Use this for client-side
+ *   `useNotices().add(...)` calls where you have a closure to run on click.
+ *   Functions can't cross the JSON wire, so PHP cannot emit this variant.
  */
-export type BannerAction = ToastAction;
+export type BannerAction =
+	| { label: string; url: string }
+	| { label: string; handler: string; params?: Record<string, unknown> }
+	| { label: string; onClick: () => void | Promise<void> };
 
 /**
  * Toast payload — matches `Sematico\ShopifyFlash\Payloads\ToastPayload`.
@@ -54,8 +64,14 @@ export interface ToastPayload {
  * `actions` is bounded to a maximum of two on the PHP side (App Bridge banner
  * surface only renders two slots). The bound is enforced at construction in PHP
  * and is not expressible in the TS shape.
+ *
+ * `id` is optional and JS-side only. When passed via `useNotices().add(...)`,
+ * an existing notice with the same id is replaced in place — useful for stable
+ * banners (e.g. an "import result" banner that updates as status changes)
+ * without creating duplicates across re-renders. PHP doesn't emit it.
  */
 export interface BannerPayload {
+	id?: string;
 	heading: string;
 	tone: Tone;
 	description?: string;
