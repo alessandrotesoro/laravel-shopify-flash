@@ -1,13 +1,19 @@
 // Public entry for @sematico/shopify-flash.
-//
-// Type re-exports land here in U4. Runtime exports (FlashListener + bridge +
-// handlers in U5, notices stack + HTTP error interceptor in U6) are added
-// to this file as those units land.
 
 export type { FlashListenerProps } from "./components/FlashListener";
 export { FlashListener } from "./components/FlashListener";
+export type { NoticeBannerProps } from "./components/NoticeBanner";
+export { NoticeBanner } from "./components/NoticeBanner";
+export { NoticesContainer } from "./components/NoticesContainer";
+export type { NoticesProviderProps } from "./components/NoticesProvider";
+export { NoticesProvider } from "./components/NoticesProvider";
 export type { FlashHandler } from "./hooks/useFlashHandlers";
 export { useFlashHandlers } from "./hooks/useFlashHandlers";
+export { useFlashNotice } from "./hooks/useFlashNotice";
+export type { Notice, UseNoticesReturn } from "./hooks/useNotices";
+export { useNotices } from "./hooks/useNotices";
+export type { FallbackMessages, HttpErrorInterceptorProps } from "./http/HttpErrorInterceptor";
+export { HttpErrorInterceptor } from "./http/HttpErrorInterceptor";
 export type {
 	BannerAction,
 	BannerPayload,
