@@ -98,7 +98,14 @@ function parseResponseEnvelope(error: HttpResponseError): ParsedEnvelope | null 
 		if (!data || typeof data !== "object") {
 			return null;
 		}
-		return data as FlashEnvelope;
+		// `withFlash()` macro wraps the envelope under a top-level `notice` key
+		// so XHR responses can co-exist with arbitrary payload data. Read it
+		// back from there — not from the root.
+		const notice = (data as { notice?: unknown }).notice;
+		if (!notice || typeof notice !== "object") {
+			return null;
+		}
+		return notice as FlashEnvelope;
 	} catch {
 		return null;
 	}
