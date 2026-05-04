@@ -30,3 +30,11 @@ phpstan.neon
 testbench.yaml
 /docs
 /coverage
+
+# JS package build output
+/dist
+/.tsbuildinfo
+
+# Spike + scratch
+/tests/spike
+
