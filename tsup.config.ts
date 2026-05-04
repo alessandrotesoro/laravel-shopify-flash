@@ -12,7 +12,16 @@ export default defineConfig({
   splitting: false,
   treeshake: true,
   target: "es2022",
-  external: ["react", "@inertiajs/react", "@shopify/app-bridge-react"],
+  // @inertiajs/core MUST be external alongside @inertiajs/react. The package
+  // imports HttpResponseError/HttpNetworkError/HttpCancelledError from core for
+  // instanceof checks — bundling them creates a second class identity, so the
+  // checks return false against the consumer's errors and the handler no-ops.
+  external: [
+    "react",
+    "@inertiajs/core",
+    "@inertiajs/react",
+    "@shopify/app-bridge-react",
+  ],
   esbuildOptions(options) {
     // React 17+ automatic JSX transform — emits `import { jsx } from "react/jsx-runtime"`
     // instead of `React.createElement(...)`. Without this, the built output references

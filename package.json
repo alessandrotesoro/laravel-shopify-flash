@@ -41,12 +41,14 @@
     "prepare": "tsup"
   },
   "peerDependencies": {
+    "@inertiajs/core": "^3.0.0",
     "@inertiajs/react": "^3.0.0",
     "@shopify/app-bridge-react": "^4.0.0",
     "react": "^19.0.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.8",
+    "@inertiajs/core": "^3.0.0",
     "@inertiajs/react": "^3.0.0",
     "@shopify/app-bridge-react": "^4.0.0",
     "@testing-library/jest-dom": "^6.9.1",
