@@ -37,7 +37,8 @@
     "lint": "biome check js",
     "lint:fix": "biome check --write js",
     "format": "biome format --write js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepare": "tsup"
   },
   "peerDependencies": {
     "@inertiajs/react": "^3.0.0",
