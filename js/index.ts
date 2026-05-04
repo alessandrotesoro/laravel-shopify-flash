@@ -1,5 +1,14 @@
 // Public entry for @sematico/shopify-flash.
-// Real exports land in U4 (types), U5 (FlashListener + bridge + handlers),
-// and U6 (notices stack + HTTP error interceptor).
+//
+// Type re-exports land here in U4. Runtime exports (FlashListener + bridge +
+// handlers in U5, notices stack + HTTP error interceptor in U6) will be added
+// to this file as those units land.
 
-export const PACKAGE_VERSION = "0.0.0";
+export type {
+	BannerAction,
+	BannerPayload,
+	FlashEnvelope,
+	ToastAction,
+	ToastPayload,
+	Tone,
+} from "./types";
