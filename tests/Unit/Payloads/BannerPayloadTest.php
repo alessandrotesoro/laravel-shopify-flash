@@ -10,13 +10,13 @@ beforeEach(function () {
     config()->set('app.url', 'https://myapp.test');
 });
 
-it('serializes a warning banner with description and two actions', function () {
+it('serializes a warning banner with description and two link actions', function () {
     $payload = BannerPayload::warning(
         heading: 'X',
         description: 'Y',
         actions: [
             BannerAction::link('Open', '/admin/orders/1'),
-            BannerAction::handler('Retry', 'retry'),
+            BannerAction::link('Retry', '/admin/orders/1/retry'),
         ],
     );
 
@@ -27,7 +27,7 @@ it('serializes a warning banner with description and two actions', function () {
     expect($arr['tone'])->toBe('warning');
     expect($arr['actions'])->toHaveCount(2);
     expect($arr['actions'][0])->toBe(['label' => 'Open', 'url' => '/admin/orders/1']);
-    expect($arr['actions'][1])->toBe(['label' => 'Retry', 'handler' => 'retry']);
+    expect($arr['actions'][1])->toBe(['label' => 'Retry', 'url' => '/admin/orders/1/retry']);
 });
 
 it('uses lowercase tone values from the enum', function () {
@@ -109,31 +109,6 @@ it('accepts the apps own origin from config(app.url) in banner link actions', fu
     $action = BannerAction::link('Open', 'https://myapp.test/dashboard');
 
     expect($action->url)->toBe('https://myapp.test/dashboard');
-});
-
-it('rejects closures in banner handler params', function () {
-    BannerAction::handler('X', 'h', ['fn' => fn () => 1]);
-})->throws(InvalidArgumentException::class, 'Closures are not JSON-serializable');
-
-it('serializes a banner with a single named-handler action and params', function () {
-    $payload = BannerPayload::critical(
-        heading: 'Stuck',
-        description: 'Upload failed',
-        actions: [
-            BannerAction::handler('Retry', 'retryUpload', ['fileId' => 'abc']),
-        ],
-        dismissible: false,
-    );
-
-    expect($payload->toArray())->toBe([
-        'heading' => 'Stuck',
-        'tone' => 'critical',
-        'description' => 'Upload failed',
-        'dismissible' => false,
-        'actions' => [
-            ['label' => 'Retry', 'handler' => 'retryUpload', 'params' => ['fileId' => 'abc']],
-        ],
-    ]);
 });
 
 it('JSON-encodes a banner with the same lowercase shape', function () {

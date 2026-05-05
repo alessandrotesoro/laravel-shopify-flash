@@ -3,7 +3,6 @@ import { defineConfig } from "tsup";
 export default defineConfig({
   entry: {
     index: "js/index.ts",
-    types: "js/types.d.ts",
   },
   format: ["esm"],
   dts: true,

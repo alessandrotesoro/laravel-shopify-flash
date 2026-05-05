@@ -17,9 +17,10 @@
 
 import { router } from "@inertiajs/react";
 import { useAppBridge } from "@shopify/app-bridge-react";
-import { useEffect } from "react";
-import { hideToast, showToast } from "../bridge/toast-bridge";
+import { useEffect, useRef } from "react";
+import { asShopifyApi, hideToast, type ShopifyApiLike, showToast } from "../bridge/toast-bridge";
 import { type FlashHandler, getHandler, onHandlerRegistered } from "../hooks/useFlashHandlers";
+import { isSafeUrl } from "../security/url-guard";
 import type { BannerPayload, FlashEnvelope, ToastAction, ToastPayload } from "../types";
 
 export interface FlashListenerProps {
@@ -93,23 +94,11 @@ async function resolveHandlerAction(action: ToastAction): Promise<ResolvedAction
 	return { kind: "unresolved", label: action.label, name };
 }
 
-interface ShopifyApiLike {
-	toast: {
-		show: (
-			message: string,
-			opts?: {
-				duration?: number;
-				isError?: boolean;
-				action?: string;
-				onAction?: () => void;
-				onDismiss?: () => void;
-			},
-		) => string;
-		hide: (id: string) => void;
-	};
-}
-
-async function dispatchToast(payload: ToastPayload, shopifyApi: ShopifyApiLike): Promise<void> {
+async function dispatchToast(
+	payload: ToastPayload,
+	shopifyApi: ShopifyApiLike,
+	mountedRef: { current: boolean },
+): Promise<void> {
 	const action = payload.action;
 
 	// No action — fire-and-forget. Toast auto-dismisses per its duration.
@@ -121,6 +110,16 @@ async function dispatchToast(payload: ToastPayload, shopifyApi: ShopifyApiLike):
 	// Link-style action — wrap onAction to call router.visit(url).
 	if ("url" in action) {
 		const url = action.url;
+		const origin = typeof window !== "undefined" ? window.location.origin : undefined;
+		if (!isSafeUrl(url, origin)) {
+			console.warn(
+				`[shopify-flash] Toast link action URL rejected by url-guard: "${url}". Action will be omitted.`,
+			);
+			const { action: _omitted, ...rest } = payload;
+			void _omitted;
+			showToast(rest, {}, shopifyApi);
+			return;
+		}
 		showToast(
 			payload,
 			{
@@ -136,6 +135,10 @@ async function dispatchToast(payload: ToastPayload, shopifyApi: ShopifyApiLike):
 	// Named-handler action — resolve against the registry (with one-tick
 	// buffering for first-paint races).
 	const resolved = await resolveHandlerAction(action);
+
+	if (!mountedRef.current) {
+		return;
+	}
 
 	if (!resolved || resolved.kind === "unresolved") {
 		const name = resolved?.name ?? action.handler;
@@ -162,6 +165,9 @@ async function dispatchToast(payload: ToastPayload, shopifyApi: ShopifyApiLike):
 		if (result && typeof (result as Promise<void>).then === "function") {
 			(result as Promise<void>).then(
 				() => {
+					if (!mountedRef.current) {
+						return;
+					}
 					if (toastId !== undefined) {
 						hideToast(toastId, shopifyApi);
 					}
@@ -191,9 +197,19 @@ async function dispatchToast(payload: ToastPayload, shopifyApi: ShopifyApiLike):
  * cleanup, so unmount removes the subscription cleanly.
  */
 export function FlashListener({ onBanner }: FlashListenerProps): null {
-	const shopify = useAppBridge() as unknown as ShopifyApiLike;
+	const shopify = asShopifyApi(useAppBridge());
+
+	// Stable ref to the latest onBanner so swapping inline callbacks doesn't
+	// re-subscribe the flash listener on every parent render.
+	const onBannerRef = useRef(onBanner);
+	onBannerRef.current = onBanner;
+
+	// Track mount status so async toast paths don't fire bridge calls after
+	// unmount (e.g. handler-resolution microtask resolves post-cleanup).
+	const mountedRef = useRef(true);
 
 	useEffect(() => {
+		mountedRef.current = true;
 		const cleanup = router.on("flash", (event) => {
 			const flash = event.detail.flash as FlashEnvelope | undefined;
 			if (!flash) {
@@ -202,14 +218,17 @@ export function FlashListener({ onBanner }: FlashListenerProps): null {
 			if (flash.toast) {
 				// Fire-and-forget — the dispatcher awaits the handler-resolution
 				// microtask internally; we don't want to block the event handler.
-				void dispatchToast(flash.toast, shopify);
+				void dispatchToast(flash.toast, shopify, mountedRef);
 			}
-			if (flash.banner && onBanner) {
-				onBanner(flash.banner);
+			if (flash.banner && onBannerRef.current) {
+				onBannerRef.current(flash.banner);
 			}
 		});
-		return cleanup;
-	}, [shopify, onBanner]);
+		return () => {
+			mountedRef.current = false;
+			cleanup();
+		};
+	}, [shopify]);
 
 	return null;
 }

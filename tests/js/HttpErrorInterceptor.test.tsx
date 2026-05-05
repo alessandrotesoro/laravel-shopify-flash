@@ -1,8 +1,9 @@
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { errorHandlers, reloadSpy, toastShow, toastHide, cleanupSpy } = vi.hoisted(() => ({
+const { errorHandlers, reloadSpy, toastShow, toastHide, cleanupSpy, finishHandlers } = vi.hoisted(() => ({
 	errorHandlers: new Set<(error: unknown) => void>(),
+	finishHandlers: new Set<() => void>(),
 	reloadSpy: vi.fn(),
 	toastShow: vi.fn(() => "toast-1"),
 	toastHide: vi.fn(),
@@ -22,32 +23,54 @@ vi.mock("@inertiajs/react", () => {
 		},
 		router: {
 			reload: reloadSpy,
+			on: (event: string, callback: () => void) => {
+				if (event !== "finish") {
+					return () => {};
+				}
+				finishHandlers.add(callback);
+				return () => {
+					finishHandlers.delete(callback);
+				};
+			},
 		},
 	};
 });
 
-vi.mock("@shopify/app-bridge-react", () => ({
-	useAppBridge: () => ({ toast: { show: toastShow, hide: toastHide } }),
-}));
+vi.mock("@shopify/app-bridge-react", () => {
+	const handle = { toast: { show: toastShow, hide: toastHide } };
+	return { useAppBridge: () => handle };
+});
 
 import { HttpCancelledError, HttpNetworkError, HttpResponseError } from "@inertiajs/core";
 import { NoticesProvider } from "../../js/components/NoticesProvider";
 import { useNotices } from "../../js/hooks/useNotices";
 import {
+	__resetSessionReloadGuard,
 	type FallbackMessages,
 	HttpErrorInterceptor,
 } from "../../js/http/HttpErrorInterceptor";
 
+let originalRAF: typeof globalThis.requestAnimationFrame;
+
 beforeEach(() => {
 	errorHandlers.clear();
+	finishHandlers.clear();
 	reloadSpy.mockClear();
 	toastShow.mockClear();
 	toastShow.mockImplementation(() => "toast-1");
 	toastHide.mockClear();
 	cleanupSpy.mockClear();
+	__resetSessionReloadGuard();
+	// rAF: synchronous fake so deferred reload runs in-test without waiting.
+	originalRAF = globalThis.requestAnimationFrame;
+	globalThis.requestAnimationFrame = ((cb: FrameRequestCallback): number => {
+		cb(0);
+		return 0;
+	}) as typeof globalThis.requestAnimationFrame;
 });
 
 afterEach(() => {
+	globalThis.requestAnimationFrame = originalRAF;
 	vi.restoreAllMocks();
 });
 
@@ -218,6 +241,31 @@ describe("<HttpErrorInterceptor />", () => {
 		expect(screen.getByTestId("last-tone").textContent).toBe("critical");
 		expect(screen.getByTestId("last-dismissible").textContent).toBe("false");
 		expect(reloadSpy).toHaveBeenCalledTimes(1);
+	});
+
+	it("concurrent 401s only fire one reload and one banner (stable id dedupe)", () => {
+		render(
+			<NoticesProvider>
+				<Harness />
+			</NoticesProvider>,
+		);
+
+		fireError(makeResponseError(401, ""));
+		fireError(makeResponseError(401, ""));
+		fireError(makeResponseError(401, ""));
+
+		// Single banner because of the stable id; single reload because of the
+		// in-flight reload guard.
+		expect(screen.getByTestId("count").textContent).toBe("1");
+		expect(reloadSpy).toHaveBeenCalledTimes(1);
+
+		// After router fires `finish`, the reload guard resets and a new 401
+		// can trigger another reload.
+		for (const handler of Array.from(finishHandlers)) {
+			handler();
+		}
+		fireError(makeResponseError(401, ""));
+		expect(reloadSpy).toHaveBeenCalledTimes(2);
 	});
 
 	it("419 surfaces the same session-expired banner + router.reload()", () => {

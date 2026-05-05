@@ -14,39 +14,14 @@
 // `afterhide`-driven removal is the contract.
 //
 // `<s-banner>` and `<s-button>` are Polaris web components, not React. The
-// JSX namespace augmentation below teaches TypeScript about `s-*` intrinsic
-// elements so the file type-checks without per-call casts.
+// JSX namespace augmentation lives in `js/jsx-polaris.d.ts` so this file (and
+// every other consumer) just gets the `s-*` intrinsic-element typing for free.
 
 import { router } from "@inertiajs/react";
-import {
-	type DetailedHTMLProps,
-	type HTMLAttributes,
-	type ReactNode,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Notice } from "../hooks/useNotices";
 import type { BannerAction } from "../types";
 import { useNoticesContext } from "./NoticesProvider";
-
-// Polaris web components (`<s-banner>`, `<s-button>`) are HTMLElement-based
-// custom elements. We augment React's JSX namespace with a wildcard so any
-// `s-*` element type-checks as a generic HTML element. Consumers that already
-// declare the same wildcard see harmless declaration merging.
-type PolarisWebComponent = Omit<
-	DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement>,
-	"onChange"
-> &
-	Record<string, unknown> & { children?: ReactNode };
-
-declare module "react" {
-	namespace JSX {
-		interface IntrinsicElements {
-			[elemName: `s-${string}`]: PolarisWebComponent;
-		}
-	}
-}
 
 export interface NoticeBannerProps {
 	notice: Notice;
@@ -106,8 +81,8 @@ export function NoticeBanner({ notice }: NoticeBannerProps) {
 			{...(hidden ? { hidden: true } : {})}
 		>
 			{notice.description}
-			{notice.actions?.map((action) => (
-				<NoticeBannerAction key={`${notice.id}-action-${action.label}`} action={action} />
+			{notice.actions?.map((action, index) => (
+				<NoticeBannerAction key={`${notice.id}-action-${index}`} action={action} />
 			))}
 		</s-banner>
 	);
@@ -129,26 +104,52 @@ function NoticeBannerAction({ action }: { action: BannerAction }) {
 		);
 	}
 
-	if ("onClick" in action) {
-		const onClick = action.onClick;
-		return (
-			<s-button
-				slot="secondary-actions"
-				variant="secondary"
-				onClick={() => {
-					void onClick();
-				}}
-			>
-				{action.label}
-			</s-button>
-		);
-	}
+	const onClick = action.onClick;
+	return <NoticeBannerInlineAction label={action.label} onClick={onClick} />;
+}
 
-	// Named-handler banner actions are reserved for future wiring (parity with
-	// toasts). Render as a no-op so the structure stays visible.
+interface NoticeBannerInlineActionProps {
+	label: string;
+	onClick: () => void | Promise<void>;
+}
+
+function NoticeBannerInlineAction({ label, onClick }: NoticeBannerInlineActionProps) {
+	// Guard against double-clicks while the previous invocation is in flight,
+	// and capture rejections so they don't escape into the global unhandled
+	// rejection stream.
+	const isExecutingRef = useRef(false);
+
+	const handleClick = (): void => {
+		if (isExecutingRef.current) {
+			return;
+		}
+		isExecutingRef.current = true;
+		let result: void | Promise<void>;
+		try {
+			result = onClick();
+		} catch (error) {
+			isExecutingRef.current = false;
+			console.error("[shopify-flash] Banner action onClick threw:", error);
+			return;
+		}
+		if (result && typeof (result as Promise<void>).then === "function") {
+			(result as Promise<void>).then(
+				() => {
+					isExecutingRef.current = false;
+				},
+				(error) => {
+					isExecutingRef.current = false;
+					console.error("[shopify-flash] Banner action onClick rejected:", error);
+				},
+			);
+			return;
+		}
+		isExecutingRef.current = false;
+	};
+
 	return (
-		<s-button slot="secondary-actions" variant="secondary">
-			{action.label}
+		<s-button slot="secondary-actions" variant="secondary" onClick={handleClick}>
+			{label}
 		</s-button>
 	);
 }

@@ -33,19 +33,15 @@ export type ToastAction =
 /**
  * Action attached to a banner.
  *
- * Three variants:
+ * Two variants:
  * - link form: `{ label, url }` — host wraps the click to call `router.visit(url)`.
  *   Emittable from PHP and JS.
- * - named-handler form: `{ label, handler, params? }` — `handler` is the string name
- *   of a client-side function (currently not wired for banners; reserved for parity
- *   with toasts). Emittable from PHP and JS.
  * - inline-onClick form: `{ label, onClick }` — JS-only. Use this for client-side
  *   `useNotices().add(...)` calls where you have a closure to run on click.
  *   Functions can't cross the JSON wire, so PHP cannot emit this variant.
  */
 export type BannerAction =
 	| { label: string; url: string }
-	| { label: string; handler: string; params?: Record<string, unknown> }
 	| { label: string; onClick: () => void | Promise<void> };
 
 /**

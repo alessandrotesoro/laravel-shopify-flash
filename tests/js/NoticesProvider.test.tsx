@@ -15,7 +15,6 @@ vi.mock("@inertiajs/react", () => ({
 import { NoticeBanner } from "../../js/components/NoticeBanner";
 import { NoticesContainer } from "../../js/components/NoticesContainer";
 import { NoticesProvider } from "../../js/components/NoticesProvider";
-import { useFlashNotice } from "../../js/hooks/useFlashNotice";
 import { useNotices } from "../../js/hooks/useNotices";
 
 beforeEach(() => {
@@ -384,41 +383,3 @@ describe("<NoticeBanner />", () => {
 	});
 });
 
-describe("useFlashNotice() (deprecated transitional drain)", () => {
-	it("drains the shared flash.notice prop into context once per page change", () => {
-		const noticeA = { heading: "A", tone: "warning" as const };
-		usePageMock.mockReturnValue({ props: { flash: { notice: noticeA } } });
-
-		function Harness() {
-			useFlashNotice();
-			const { items } = useNotices();
-			return <div data-testid="count">{items.length}</div>;
-		}
-
-		const { rerender } = render(
-			<NoticesProvider>
-				<Harness />
-			</NoticesProvider>,
-		);
-		expect(screen.getByTestId("count").textContent).toBe("1");
-
-		// Same payload reference on re-render → no double-add.
-		rerender(
-			<NoticesProvider>
-				<Harness />
-			</NoticesProvider>,
-		);
-		expect(screen.getByTestId("count").textContent).toBe("1");
-
-		// New payload reference (= page change) → adds again.
-		usePageMock.mockReturnValue({
-			props: { flash: { notice: { heading: "B", tone: "info" as const } } },
-		});
-		rerender(
-			<NoticesProvider>
-				<Harness />
-			</NoticesProvider>,
-		);
-		expect(screen.getByTestId("count").textContent).toBe("2");
-	});
-});

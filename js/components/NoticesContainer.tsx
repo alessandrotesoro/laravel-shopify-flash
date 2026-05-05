@@ -4,23 +4,8 @@
 // when the stack is empty so the wrapper doesn't add visual padding for
 // nothing.
 
-import type { DetailedHTMLProps, HTMLAttributes, ReactNode } from "react";
 import { NoticeBanner } from "./NoticeBanner";
 import { useNoticesContext } from "./NoticesProvider";
-
-type PolarisWebComponent = Omit<
-	DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement>,
-	"onChange"
-> &
-	Record<string, unknown> & { children?: ReactNode };
-
-declare module "react" {
-	namespace JSX {
-		interface IntrinsicElements {
-			[elemName: `s-${string}`]: PolarisWebComponent;
-		}
-	}
-}
 
 /**
  * Render the active notices as a stack. Returns `null` when empty.

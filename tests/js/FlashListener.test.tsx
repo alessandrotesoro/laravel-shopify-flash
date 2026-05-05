@@ -37,10 +37,11 @@ vi.mock("@inertiajs/react", () => {
 });
 
 vi.mock("@shopify/app-bridge-react", () => {
+	// Real `useAppBridge()` returns a stable singleton; mirror that here so
+	// effects keyed on the handle don't re-fire across renders.
+	const handle = { toast: { show: toastShow, hide: toastHide } };
 	return {
-		useAppBridge: () => ({
-			toast: { show: toastShow, hide: toastHide },
-		}),
+		useAppBridge: () => handle,
 	};
 });
 
@@ -362,6 +363,64 @@ describe("<FlashListener />", () => {
 		expect(toastHide).not.toHaveBeenCalled();
 
 		errorSpy.mockRestore();
+	});
+
+	it("re-rendering the parent with a new inline onBanner does not re-subscribe", () => {
+		function Parent({ tag }: { tag: number }) {
+			// Inline arrow swaps identity each render — should NOT cause router.on
+			// to fire again because we read the callback through a ref.
+			return <FlashListener onBanner={() => void tag} />;
+		}
+
+		const { rerender } = render(<Parent tag={1} />);
+		expect(flashHandlers.size).toBe(1);
+
+		rerender(<Parent tag={2} />);
+		rerender(<Parent tag={3} />);
+
+		// One subscription, no extra cleanups.
+		expect(flashHandlers.size).toBe(1);
+		expect(cleanupSpy).not.toHaveBeenCalled();
+	});
+
+	it("unmount during async handler resolution does not call hideToast post-unmount", async () => {
+		const { result } = renderHandlersHook();
+		let resolveAction: (() => void) | undefined;
+		const slow = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveAction = () => resolve();
+				}),
+		);
+
+		act(() => {
+			result.current.register("slow.handler", slow);
+		});
+
+		const { unmount } = render(<FlashListener />);
+
+		act(() => {
+			fireFlash({
+				toast: {
+					message: "x",
+					action: { label: "Go", handler: "slow.handler" },
+				},
+			});
+		});
+		await flushMicrotasks();
+
+		const opts = toastShow.mock.calls[0]?.[1];
+		opts?.onAction?.();
+
+		// Unmount BEFORE the async handler resolves.
+		unmount();
+
+		await act(async () => {
+			resolveAction?.();
+			await flushMicrotasks();
+		});
+
+		expect(toastHide).not.toHaveBeenCalled();
 	});
 
 	it("registry calls are stable across re-renders (does not loop when used as effect dep)", () => {

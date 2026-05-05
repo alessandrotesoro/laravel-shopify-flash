@@ -9,7 +9,6 @@ export type { NoticesProviderProps } from "./components/NoticesProvider";
 export { NoticesProvider } from "./components/NoticesProvider";
 export type { FlashHandler } from "./hooks/useFlashHandlers";
 export { useFlashHandlers } from "./hooks/useFlashHandlers";
-export { useFlashNotice } from "./hooks/useFlashNotice";
 export type { Notice, UseNoticesReturn } from "./hooks/useNotices";
 export { useNotices } from "./hooks/useNotices";
 export type { FallbackMessages, HttpErrorInterceptorProps } from "./http/HttpErrorInterceptor";

@@ -22,9 +22,10 @@ import { HttpCancelledError, HttpNetworkError, HttpResponseError } from "@inerti
 import { http, router } from "@inertiajs/react";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { useEffect, useRef } from "react";
-import { type ShopifyApiLike, showToast } from "../bridge/toast-bridge";
+import { asShopifyApi, showToast } from "../bridge/toast-bridge";
 import { useNoticesContext } from "../components/NoticesProvider";
-import type { BannerPayload, FlashEnvelope } from "../types";
+import { isSafeUrl } from "../security/url-guard";
+import type { BannerAction, BannerPayload } from "../types";
 
 interface BannerMessage {
 	heading: string;
@@ -92,23 +93,80 @@ interface ParsedEnvelope {
 	banner?: BannerPayload;
 }
 
+const VALID_TONES = new Set<string>(["info", "success", "warning", "critical", "auto"]);
+
+function isBannerPayload(value: unknown): value is BannerPayload {
+	if (!value || typeof value !== "object") {
+		return false;
+	}
+	const candidate = value as Record<string, unknown>;
+	if (typeof candidate.heading !== "string") {
+		return false;
+	}
+	if (typeof candidate.tone !== "string" || !VALID_TONES.has(candidate.tone)) {
+		return false;
+	}
+	if (candidate.description !== undefined && typeof candidate.description !== "string") {
+		return false;
+	}
+	return true;
+}
+
 function parseResponseEnvelope(error: HttpResponseError): ParsedEnvelope | null {
-	try {
-		const data = JSON.parse(error.response.data);
-		if (!data || typeof data !== "object") {
+	const raw = error.response.data;
+	let data: unknown;
+	if (typeof raw === "string") {
+		try {
+			data = JSON.parse(raw);
+		} catch {
 			return null;
 		}
-		// `withFlash()` macro wraps the envelope under a top-level `notice` key
-		// so XHR responses can co-exist with arbitrary payload data. Read it
-		// back from there — not from the root.
-		const notice = (data as { notice?: unknown }).notice;
-		if (!notice || typeof notice !== "object") {
-			return null;
-		}
-		return notice as FlashEnvelope;
-	} catch {
+	} else if (raw && typeof raw === "object") {
+		data = raw;
+	} else {
 		return null;
 	}
+	if (!data || typeof data !== "object") {
+		return null;
+	}
+	// `withFlash()` macro wraps the envelope under a top-level `notice` key
+	// so XHR responses can co-exist with arbitrary payload data. Read it
+	// back from there — not from the root.
+	const notice = (data as { notice?: unknown }).notice;
+	if (!notice || typeof notice !== "object") {
+		return null;
+	}
+	const envelope = notice as { banner?: unknown };
+	if (envelope.banner === undefined) {
+		return {} as ParsedEnvelope;
+	}
+	if (!isBannerPayload(envelope.banner)) {
+		return null;
+	}
+	const banner = sanitizeBannerActions(envelope.banner);
+	return { banner } satisfies ParsedEnvelope;
+}
+
+/**
+ * Drop any link-style banner actions whose URL fails the same-origin URL guard.
+ * Inline-onClick variants can't reach this code path (PHP cannot emit closures),
+ * so they're left untouched.
+ */
+function sanitizeBannerActions(banner: BannerPayload): BannerPayload {
+	if (!banner.actions || banner.actions.length === 0) {
+		return banner;
+	}
+	const origin = typeof window !== "undefined" ? window.location.origin : undefined;
+	const safe = banner.actions.filter((action: BannerAction): boolean => {
+		if (!("url" in action)) {
+			return true;
+		}
+		return isSafeUrl(action.url, origin);
+	});
+	if (safe.length === banner.actions.length) {
+		return banner;
+	}
+	return { ...banner, actions: safe };
 }
 
 function fallbackBannerForStatus(
@@ -136,12 +194,31 @@ export interface HttpErrorInterceptorProps {
 }
 
 /**
+ * Module-level guard against re-entrant 401/419 reloads. Set to `true` while a
+ * `router.reload()` is in flight so subsequent 401s skip the reload (the
+ * notices banner-id dedupe still suppresses the visible duplicate banner).
+ */
+let isReloading = false;
+
+/**
+ * Internal: reset the reload guard. Exposed for tests that simulate sequential
+ * 401 scenarios across test boundaries; not part of the public API.
+ *
+ * @internal
+ */
+export function __resetSessionReloadGuard(): void {
+	isReloading = false;
+}
+
+const SESSION_EXPIRED_BANNER_ID = "shopify-flash:session-expired";
+
+/**
  * Mount once near the root of the app, inside `<NoticesProvider />` and the
  * App Bridge provider. Returns `null`.
  */
 export function HttpErrorInterceptor({ fallbackMessages }: HttpErrorInterceptorProps = {}) {
 	const { add } = useNoticesContext();
-	const shopify = useAppBridge() as unknown as ShopifyApiLike;
+	const shopify = asShopifyApi(useAppBridge());
 
 	// Use refs so the effect that subscribes to `http.onError` doesn't tear
 	// down and re-subscribe on every render — but still reads the latest
@@ -181,13 +258,26 @@ export function HttpErrorInterceptor({ fallbackMessages }: HttpErrorInterceptorP
 
 			if (status === 401 || status === 419) {
 				const { heading, description } = messagesRef.current.sessionExpired;
+				// Stable id so re-fired 401s replace the existing banner in
+				// place (NoticesProvider dedupes by id) instead of stacking.
 				addRef.current({
+					id: SESSION_EXPIRED_BANNER_ID,
 					heading,
 					description,
 					tone: "critical",
 					dismissible: false,
 				});
-				router.reload();
+				if (!isReloading) {
+					isReloading = true;
+					const finishCleanup = router.on("finish", () => {
+						isReloading = false;
+						finishCleanup();
+					});
+					// Defer one frame so the banner paints before the reload swaps the page.
+					requestAnimationFrame(() => {
+						router.reload();
+					});
+				}
 				return;
 			}
 

@@ -2,7 +2,6 @@
   "name": "@sematico/shopify-flash",
   "description": "Shared React + Inertia v3 client for Shopify App Bridge toast and Polaris s-banner UX, paired with sematico/laravel-shopify-flash on the backend.",
   "version": "0.0.0",
-  "private": true,
   "license": "MIT",
   "author": "Alessandro Tesoro <alessandro@levelogy.com>",
   "homepage": "https://github.com/alessandrotesoro/laravel-shopify-flash",
@@ -17,10 +16,12 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./types": {
-      "types": "./dist/types.d.ts"
+      "types": "./js/types.d.ts",
+      "default": "./js/types.d.ts"
     }
   },
   "files": [
@@ -64,5 +65,8 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "@braintree/sanitize-url": "^7.1.2"
   }
 }

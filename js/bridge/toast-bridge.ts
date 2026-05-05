@@ -34,6 +34,30 @@ export interface ShopifyApiLike {
 }
 
 /**
+ * Runtime predicate for {@link ShopifyApiLike}. Narrows an unknown value
+ * (typically the return of `useAppBridge()`) to confirm it carries the toast
+ * surface the bridge depends on.
+ */
+export function isShopifyApiLike(value: unknown): value is ShopifyApiLike {
+	if (typeof value !== "object" || value === null || !("toast" in value)) {
+		return false;
+	}
+	const toast = (value as Record<string, unknown>).toast;
+	return typeof toast === "object" && toast !== null;
+}
+
+/**
+ * Narrow `useAppBridge()`'s return value into {@link ShopifyApiLike}, throwing
+ * if the toast surface is missing rather than silently double-casting.
+ */
+export function asShopifyApi(handle: unknown): ShopifyApiLike {
+	if (!isShopifyApiLike(handle)) {
+		throw new Error("[shopify-flash] App Bridge handle missing toast API");
+	}
+	return handle;
+}
+
+/**
  * Optional callbacks the listener wires onto a toast.
  */
 export interface ToastBridgeOptions {
@@ -44,6 +68,9 @@ export interface ToastBridgeOptions {
 /**
  * Show a toast through App Bridge. Returns the toast id so callers can
  * imperatively hide it later via {@link hideToast}.
+ *
+ * Returns an empty string when the bridge throws — App Bridge failures must
+ * never escape into Inertia's event/error callback chain.
  */
 export function showToast(
 	payload: ToastPayload,
@@ -66,12 +93,21 @@ export function showToast(
 		opts.onDismiss = options.onDismiss;
 	}
 
-	return shopifyApi.toast.show(payload.message, opts);
+	try {
+		return shopifyApi.toast.show(payload.message, opts);
+	} catch (err) {
+		console.error("[shopify-flash] toast bridge failed:", err);
+		return "";
+	}
 }
 
 /**
  * Hide a previously-shown toast by id.
  */
 export function hideToast(id: string, shopifyApi: ShopifyApiLike): void {
-	shopifyApi.toast.hide(id);
+	try {
+		shopifyApi.toast.hide(id);
+	} catch (err) {
+		console.error("[shopify-flash] toast bridge failed:", err);
+	}
 }

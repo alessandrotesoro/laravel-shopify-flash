@@ -69,7 +69,5 @@
                 "Sematico\\ShopifyFlash\\ShopifyFlashServiceProvider"
             ]
         }
-    },
-    "minimum-stability": "dev",
-    "prefer-stable": true
+    }
 }

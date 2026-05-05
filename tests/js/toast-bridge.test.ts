@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { hideToast, showToast } from "../../js/bridge/toast-bridge";
+import {
+	asShopifyApi,
+	hideToast,
+	isShopifyApiLike,
+	showToast,
+} from "../../js/bridge/toast-bridge";
 import type { ShopifyApiLike } from "../../js/bridge/toast-bridge";
 
 function makeShopify(): ShopifyApiLike & {
@@ -81,5 +86,29 @@ describe("toast-bridge", () => {
 		const shopify = makeShopify();
 		hideToast("abc", shopify);
 		expect(shopify.toast.hide).toHaveBeenCalledWith("abc");
+	});
+
+	describe("isShopifyApiLike / asShopifyApi", () => {
+		it("recognises a handle with the toast surface", () => {
+			expect(isShopifyApiLike(makeShopify())).toBe(true);
+		});
+
+		it("rejects null, undefined, primitives, and objects without a toast key", () => {
+			expect(isShopifyApiLike(null)).toBe(false);
+			expect(isShopifyApiLike(undefined)).toBe(false);
+			expect(isShopifyApiLike("shopify")).toBe(false);
+			expect(isShopifyApiLike(42)).toBe(false);
+			expect(isShopifyApiLike({})).toBe(false);
+			expect(isShopifyApiLike({ toast: null })).toBe(false);
+		});
+
+		it("asShopifyApi returns the handle when it matches the predicate", () => {
+			const shopify = makeShopify();
+			expect(asShopifyApi(shopify)).toBe(shopify);
+		});
+
+		it("asShopifyApi throws when the handle is missing the toast surface", () => {
+			expect(() => asShopifyApi({})).toThrow("App Bridge handle missing toast API");
+		});
 	});
 });
