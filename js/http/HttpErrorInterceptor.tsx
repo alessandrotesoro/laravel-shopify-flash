@@ -21,11 +21,12 @@
 import { HttpCancelledError, HttpNetworkError, HttpResponseError } from "@inertiajs/core";
 import { http, router } from "@inertiajs/react";
 import { useAppBridge } from "@shopify/app-bridge-react";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo } from "react";
 import { asShopifyApi, showToast } from "../bridge/toast-bridge";
 import { useNoticesContext } from "../components/NoticesProvider";
+import { useLatestRef } from "../hooks/useLatestRef";
 import { isSafeUrl } from "../security/url-guard";
-import type { BannerAction, BannerPayload } from "../types";
+import type { BannerAction, BannerPayload, Tone } from "../types";
 
 interface BannerMessage {
 	heading: string;
@@ -86,7 +87,13 @@ interface ParsedEnvelope {
 	banner?: BannerPayload;
 }
 
-const VALID_TONES = new Set<string>(["info", "success", "warning", "critical", "auto"]);
+const VALID_TONES: ReadonlySet<string> = new Set([
+	"info",
+	"success",
+	"warning",
+	"critical",
+	"auto",
+] as const satisfies readonly Tone[]);
 
 function isBannerPayload(value: unknown): value is BannerPayload {
 	if (!value || typeof value !== "object") {
@@ -214,15 +221,11 @@ export function HttpErrorInterceptor({ fallbackMessages }: HttpErrorInterceptorP
 	const shopify = asShopifyApi(useAppBridge());
 	const messages = useMemo(() => resolveMessages(fallbackMessages), [fallbackMessages]);
 
-	// Use refs so the effect that subscribes to `http.onError` doesn't tear
-	// down and re-subscribe on every render — but still reads the latest
-	// values when an error fires.
-	const addRef = useRef(add);
-	addRef.current = add;
-	const shopifyRef = useRef(shopify);
-	shopifyRef.current = shopify;
-	const messagesRef = useRef(messages);
-	messagesRef.current = messages;
+	// Refs keep the `http.onError` subscription stable across renders while
+	// still reading the latest values when an error fires.
+	const addRef = useLatestRef(add);
+	const shopifyRef = useLatestRef(shopify);
+	const messagesRef = useLatestRef(messages);
 
 	useEffect(() => {
 		return http.onError((error) => {

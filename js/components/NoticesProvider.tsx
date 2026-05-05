@@ -14,9 +14,7 @@ import { createContext, type ReactNode, useCallback, useContext, useMemo, useSta
 import type { BannerPayload, Tone } from "../types";
 
 /**
- * A notice is a {@link BannerPayload} with a client-generated id assigned at
- * `add()` time. The id is opaque — callers should treat it only as an argument
- * to `remove(id)`.
+ * The id is opaque — callers should treat it only as an argument to `remove(id)`.
  */
 export interface Notice extends BannerPayload {
 	id: string;
@@ -72,7 +70,7 @@ export function NoticesProvider({ children }: NoticesProviderProps) {
 	}, []);
 
 	const clear = useCallback((): void => {
-		setItems([]);
+		setItems((prev) => (prev.length === 0 ? prev : []));
 	}, []);
 
 	const value = useMemo<NoticesContextValue>(

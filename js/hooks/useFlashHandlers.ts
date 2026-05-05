@@ -10,8 +10,6 @@
 // its effect cleans up, the handler disappears from the registry, so handlers
 // from prior pages are not silently resolvable on later flashes.
 
-import { useMemo } from "react";
-
 /**
  * A flash action handler. Receives the action's `params` (no closure capture
  * of caller state — keeps cross-tenant safety as an architectural property,
@@ -91,6 +89,11 @@ function unregisterHandler(name: string): void {
 	registry.delete(name);
 }
 
+const handlersApi = {
+	register: registerHandler,
+	unregister: unregisterHandler,
+} as const;
+
 /**
  * Hook returning a stable `{ register, unregister }` API. The returned
  * functions are referentially stable across re-renders, so they can be used
@@ -100,11 +103,5 @@ export function useFlashHandlers(): {
 	register: (name: string, fn: FlashHandler) => () => void;
 	unregister: (name: string) => void;
 } {
-	return useMemo(
-		() => ({
-			register: registerHandler,
-			unregister: unregisterHandler,
-		}),
-		[],
-	);
+	return handlersApi;
 }

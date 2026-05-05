@@ -1,9 +1,3 @@
-// Renders the active notices stack as a vertical list of `<NoticeBanner />`s.
-//
-// Place wherever banners should appear in the page layout. Returns `null`
-// when the stack is empty so the wrapper doesn't add visual padding for
-// nothing.
-
 import { NoticeBanner } from "./NoticeBanner";
 import { useNoticesContext } from "./NoticesProvider";
 

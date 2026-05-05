@@ -8,6 +8,7 @@ use Illuminate\Contracts\Support\Arrayable;
 use InvalidArgumentException;
 use JsonSerializable;
 use Sematico\ShopifyFlash\Payloads\BannerPayload;
+use Sematico\ShopifyFlash\Payloads\Internal\JsonSerializesViaToArray;
 use Sematico\ShopifyFlash\Payloads\ToastPayload;
 
 /**
@@ -19,6 +20,8 @@ use Sematico\ShopifyFlash\Payloads\ToastPayload;
  */
 final readonly class FlashEnvelope implements Arrayable, JsonSerializable
 {
+    use JsonSerializesViaToArray;
+
     public function __construct(
         public ?ToastPayload $toast = null,
         public ?BannerPayload $banner = null,
@@ -56,13 +59,5 @@ final readonly class FlashEnvelope implements Arrayable, JsonSerializable
         }
 
         return $out;
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    public function jsonSerialize(): array
-    {
-        return $this->toArray();
     }
 }

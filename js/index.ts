@@ -1,5 +1,3 @@
-// Public entry for @sematico/shopify-flash.
-
 export type { FlashListenerProps } from "./components/FlashListener";
 export { FlashListener } from "./components/FlashListener";
 export type { NoticeBannerProps } from "./components/NoticeBanner";

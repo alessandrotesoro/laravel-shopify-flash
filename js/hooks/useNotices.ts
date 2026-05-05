@@ -1,10 +1,3 @@
-// Public hook for adding, removing, and reading notices.
-//
-// Returns the raw `add(payload)`, `remove(id)`, `clear()`, and `items` from
-// the provider, plus convenience methods that prefill the `tone` field for
-// the four common cases. The convenience methods accept an `Omit<BannerPayload, "tone">`
-// so callers can stay type-safe without restating `tone` at every call site.
-
 import { useCallback } from "react";
 import { type Notice, useNoticesContext } from "../components/NoticesProvider";
 import type { BannerPayload, Tone } from "../types";

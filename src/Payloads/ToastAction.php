@@ -7,6 +7,7 @@ namespace Sematico\ShopifyFlash\Payloads;
 use Illuminate\Contracts\Support\Arrayable;
 use JsonSerializable;
 use Sematico\ShopifyFlash\Payloads\Internal\ActionGuard;
+use Sematico\ShopifyFlash\Payloads\Internal\JsonSerializesViaToArray;
 
 /**
  * Action attached to a toast.
@@ -20,6 +21,8 @@ use Sematico\ShopifyFlash\Payloads\Internal\ActionGuard;
  */
 final readonly class ToastAction implements Arrayable, JsonSerializable
 {
+    use JsonSerializesViaToArray;
+
     /**
      * @param  array<string, scalar|array<mixed>>|null  $params
      */
@@ -64,13 +67,5 @@ final readonly class ToastAction implements Arrayable, JsonSerializable
         }
 
         return $out;
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    public function jsonSerialize(): array
-    {
-        return $this->toArray();
     }
 }

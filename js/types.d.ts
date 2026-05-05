@@ -24,7 +24,7 @@ export type Tone = "info" | "success" | "warning" | "critical" | "auto";
  * Discriminated union:
  * - link form: `{ label, url }` — host wraps `onAction` to call `router.visit(url)`.
  * - named-handler form: `{ label, handler, params? }` — `handler` is the string name of
- *   a client-side function registered via `useFlashHandlers()` (lands in U5).
+ *   a client-side function registered via `useFlashHandlers()`.
  */
 export type ToastAction =
 	| { label: string; url: string }

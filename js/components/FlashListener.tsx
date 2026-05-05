@@ -20,6 +20,8 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { useEffect, useRef } from "react";
 import { asShopifyApi, hideToast, type ShopifyApiLike, showToast } from "../bridge/toast-bridge";
 import { type FlashHandler, getHandler, onHandlerRegistered } from "../hooks/useFlashHandlers";
+import { useLatestRef } from "../hooks/useLatestRef";
+import { isThenable } from "../internal/isThenable";
 import { isSafeUrl } from "../security/url-guard";
 import type { BannerPayload, FlashEnvelope, ToastAction, ToastPayload } from "../types";
 
@@ -93,6 +95,15 @@ async function dispatchToast(
 ): Promise<void> {
 	const action = payload.action;
 
+	// Show the toast without its action button — used when a URL fails the
+	// url-guard or a named handler can't be resolved. Stripping the field
+	// (rather than wiring a no-op onAction) keeps the toast visible without
+	// the misleading button.
+	const showWithoutAction = (): void => {
+		const { action: _, ...rest } = payload;
+		showToast(rest, {}, shopifyApi);
+	};
+
 	// No action — fire-and-forget. Toast auto-dismisses per its duration.
 	if (!action) {
 		showToast(payload, {}, shopifyApi);
@@ -107,9 +118,7 @@ async function dispatchToast(
 			console.warn(
 				`[shopify-flash] Toast link action URL rejected by url-guard: "${url}". Action will be omitted.`,
 			);
-			const { action: _omitted, ...rest } = payload;
-			void _omitted;
-			showToast(rest, {}, shopifyApi);
+			showWithoutAction();
 			return;
 		}
 		showToast(
@@ -137,10 +146,7 @@ async function dispatchToast(
 		console.warn(
 			`[shopify-flash] No handler registered for "${name}". Toast action will be omitted.`,
 		);
-		// Show the toast WITHOUT the action button so it can't silently no-op.
-		const { action: _omitted, ...rest } = payload;
-		void _omitted;
-		showToast(rest, {}, shopifyApi);
+		showWithoutAction();
 		return;
 	}
 
@@ -154,8 +160,8 @@ async function dispatchToast(
 			return;
 		}
 
-		if (result && typeof (result as Promise<void>).then === "function") {
-			(result as Promise<void>).then(
+		if (isThenable(result)) {
+			result.then(
 				() => {
 					if (!mountedRef.current) {
 						return;
@@ -189,12 +195,10 @@ async function dispatchToast(
  * cleanup, so unmount removes the subscription cleanly.
  */
 export function FlashListener({ onBanner }: FlashListenerProps): null {
-	const shopify = asShopifyApi(useAppBridge());
-
-	// Stable ref to the latest onBanner so swapping inline callbacks doesn't
-	// re-subscribe the flash listener on every parent render.
-	const onBannerRef = useRef(onBanner);
-	onBannerRef.current = onBanner;
+	// Refs keep the `router.on('flash')` subscription stable across renders
+	// while still reading the latest bridge handle / banner callback.
+	const shopifyRef = useLatestRef(asShopifyApi(useAppBridge()));
+	const onBannerRef = useLatestRef(onBanner);
 
 	// Track mount status so async toast paths don't fire bridge calls after
 	// unmount (e.g. handler-resolution microtask resolves post-cleanup).
@@ -210,7 +214,7 @@ export function FlashListener({ onBanner }: FlashListenerProps): null {
 			if (flash.toast) {
 				// Fire-and-forget — the dispatcher awaits the handler-resolution
 				// microtask internally; we don't want to block the event handler.
-				void dispatchToast(flash.toast, shopify, mountedRef);
+				void dispatchToast(flash.toast, shopifyRef.current, mountedRef);
 			}
 			if (flash.banner && onBannerRef.current) {
 				onBannerRef.current(flash.banner);
@@ -220,7 +224,7 @@ export function FlashListener({ onBanner }: FlashListenerProps): null {
 			mountedRef.current = false;
 			cleanup();
 		};
-	}, [shopify]);
+	}, []);
 
 	return null;
 }

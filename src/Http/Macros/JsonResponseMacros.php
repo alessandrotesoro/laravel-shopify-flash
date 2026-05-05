@@ -27,7 +27,6 @@ final class JsonResponseMacros
     public static function register(): void
     {
         if (self::$registered) {
-            // Re-bootstrap (e.g. Orchestra Testbench between tests) is a no-op.
             return;
         }
 

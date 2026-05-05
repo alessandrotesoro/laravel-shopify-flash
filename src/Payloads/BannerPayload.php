@@ -7,6 +7,7 @@ namespace Sematico\ShopifyFlash\Payloads;
 use Illuminate\Contracts\Support\Arrayable;
 use InvalidArgumentException;
 use JsonSerializable;
+use Sematico\ShopifyFlash\Payloads\Internal\JsonSerializesViaToArray;
 
 /**
  * Strict, JSON-serializable value object matching the Polaris `<s-banner>` surface.
@@ -19,6 +20,8 @@ use JsonSerializable;
  */
 final readonly class BannerPayload implements Arrayable, JsonSerializable
 {
+    use JsonSerializesViaToArray;
+
     /**
      * @param  list<BannerAction>|null  $actions
      */
@@ -43,13 +46,7 @@ final readonly class BannerPayload implements Arrayable, JsonSerializable
      */
     public static function info(string $heading, ?string $description = null, ?array $actions = null, bool $dismissible = true): self
     {
-        return new self(
-            heading: $heading,
-            tone: Tone::Info,
-            description: $description,
-            dismissible: $dismissible,
-            actions: $actions,
-        );
+        return self::make(Tone::Info, $heading, $description, $actions, $dismissible);
     }
 
     /**
@@ -57,13 +54,7 @@ final readonly class BannerPayload implements Arrayable, JsonSerializable
      */
     public static function success(string $heading, ?string $description = null, ?array $actions = null, bool $dismissible = true): self
     {
-        return new self(
-            heading: $heading,
-            tone: Tone::Success,
-            description: $description,
-            dismissible: $dismissible,
-            actions: $actions,
-        );
+        return self::make(Tone::Success, $heading, $description, $actions, $dismissible);
     }
 
     /**
@@ -71,13 +62,7 @@ final readonly class BannerPayload implements Arrayable, JsonSerializable
      */
     public static function warning(string $heading, ?string $description = null, ?array $actions = null, bool $dismissible = true): self
     {
-        return new self(
-            heading: $heading,
-            tone: Tone::Warning,
-            description: $description,
-            dismissible: $dismissible,
-            actions: $actions,
-        );
+        return self::make(Tone::Warning, $heading, $description, $actions, $dismissible);
     }
 
     /**
@@ -85,9 +70,17 @@ final readonly class BannerPayload implements Arrayable, JsonSerializable
      */
     public static function critical(string $heading, ?string $description = null, ?array $actions = null, bool $dismissible = true): self
     {
+        return self::make(Tone::Critical, $heading, $description, $actions, $dismissible);
+    }
+
+    /**
+     * @param  list<BannerAction>|null  $actions
+     */
+    private static function make(Tone $tone, string $heading, ?string $description, ?array $actions, bool $dismissible): self
+    {
         return new self(
             heading: $heading,
-            tone: Tone::Critical,
+            tone: $tone,
             description: $description,
             dismissible: $dismissible,
             actions: $actions,
@@ -117,13 +110,5 @@ final readonly class BannerPayload implements Arrayable, JsonSerializable
         }
 
         return $out;
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    public function jsonSerialize(): array
-    {
-        return $this->toArray();
     }
 }

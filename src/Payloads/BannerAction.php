@@ -7,6 +7,7 @@ namespace Sematico\ShopifyFlash\Payloads;
 use Illuminate\Contracts\Support\Arrayable;
 use JsonSerializable;
 use Sematico\ShopifyFlash\Payloads\Internal\ActionGuard;
+use Sematico\ShopifyFlash\Payloads\Internal\JsonSerializesViaToArray;
 
 /**
  * Action attached to a banner.
@@ -22,6 +23,8 @@ use Sematico\ShopifyFlash\Payloads\Internal\ActionGuard;
  */
 final readonly class BannerAction implements Arrayable, JsonSerializable
 {
+    use JsonSerializesViaToArray;
+
     private function __construct(
         public string $label,
         public string $url,
@@ -40,13 +43,5 @@ final readonly class BannerAction implements Arrayable, JsonSerializable
     public function toArray(): array
     {
         return ['label' => $this->label, 'url' => $this->url];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    public function jsonSerialize(): array
-    {
-        return $this->toArray();
     }
 }

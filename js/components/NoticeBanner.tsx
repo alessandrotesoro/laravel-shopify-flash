@@ -20,6 +20,7 @@
 import { router } from "@inertiajs/react";
 import { useEffect, useRef, useState } from "react";
 import type { Notice } from "../hooks/useNotices";
+import { isThenable } from "../internal/isThenable";
 import type { BannerAction } from "../types";
 import { useNoticesContext } from "./NoticesProvider";
 
@@ -56,8 +57,7 @@ export function NoticeBanner({ notice }: NoticeBannerProps) {
 			remove(notice.id);
 		};
 		const handleDismiss = (): void => {
-			// Trigger the exit animation. `afterhide` will remove the entry
-			// from context once the animation completes.
+			// `afterhide` removes the entry once the exit animation completes.
 			setHidden(true);
 		};
 		element.addEventListener("afterhide", handleAfterhide);
@@ -132,8 +132,8 @@ function NoticeBannerInlineAction({ label, onClick }: NoticeBannerInlineActionPr
 			console.error("[shopify-flash] Banner action onClick threw:", error);
 			return;
 		}
-		if (result && typeof (result as Promise<void>).then === "function") {
-			(result as Promise<void>).then(
+		if (isThenable(result)) {
+			result.then(
 				() => {
 					isExecutingRef.current = false;
 				},

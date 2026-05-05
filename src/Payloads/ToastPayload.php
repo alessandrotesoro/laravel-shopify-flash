@@ -7,6 +7,7 @@ namespace Sematico\ShopifyFlash\Payloads;
 use Illuminate\Contracts\Support\Arrayable;
 use InvalidArgumentException;
 use JsonSerializable;
+use Sematico\ShopifyFlash\Payloads\Internal\JsonSerializesViaToArray;
 
 /**
  * Strict, JSON-serializable value object matching the Shopify App Bridge `Toast.show` options.
@@ -16,6 +17,8 @@ use JsonSerializable;
  */
 final readonly class ToastPayload implements Arrayable, JsonSerializable
 {
+    use JsonSerializesViaToArray;
+
     public function __construct(
         public string $message,
         public ?bool $isError = null,
@@ -61,13 +64,5 @@ final readonly class ToastPayload implements Arrayable, JsonSerializable
         }
 
         return $out;
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    public function jsonSerialize(): array
-    {
-        return $this->toArray();
     }
 }

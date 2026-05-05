@@ -22,10 +22,8 @@ use Sematico\ShopifyFlash\Payloads\ToastPayload;
 final class RedirectResponseMacros
 {
     /**
-     * Tracks macros this class registered so re-entry from re-bootstrapped
-     * service providers (e.g. Orchestra Testbench between tests) is a no-op
-     * rather than a duplicate throw. A `hasMacro()` hit that we DIDN'T set
-     * means an external collision and is rejected.
+     * Names this class registered. A `hasMacro()` hit not in this set means
+     * an external collision and is rejected.
      *
      * @var array<string, true>
      */
@@ -76,7 +74,6 @@ final class RedirectResponseMacros
     private static function shouldRegister(string $name): bool
     {
         if (isset(self::$registered[$name])) {
-            // Already registered by us in this process — re-bootstrap is a no-op.
             return false;
         }
 

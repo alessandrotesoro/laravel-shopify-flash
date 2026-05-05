@@ -21,8 +21,8 @@ export function isSafeUrl(url: string, allowedOrigin?: string): boolean {
 		return true;
 	}
 	try {
-		const parsed = new URL(url, allowedOrigin);
-		return parsed.origin === new URL(allowedOrigin).origin;
+		const base = new URL(allowedOrigin);
+		return new URL(url, base).origin === base.origin;
 	} catch {
 		return false;
 	}

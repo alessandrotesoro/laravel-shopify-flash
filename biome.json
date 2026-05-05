@@ -11,7 +11,15 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true
+      "recommended": true,
+      "correctness": {
+        "useExhaustiveDependencies": {
+          "level": "error",
+          "options": {
+            "hooks": [{ "name": "useLatestRef", "stableResult": true }]
+          }
+        }
+      }
     }
   },
   "javascript": {
