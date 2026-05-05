@@ -11,7 +11,7 @@ use JsonSerializable;
 /**
  * Strict, JSON-serializable value object matching the Polaris `<s-banner>` surface.
  *
- * Wire shape (lowercase keys to match the JS `flashDataType` declared in U4):
+ * Wire shape (lowercase keys to match the JS `flashDataType`):
  * `{ heading, description?, tone, dismissible?, actions? }`
  *
  * `tone` is constrained by the {@see Tone} enum and serializes to its string value.

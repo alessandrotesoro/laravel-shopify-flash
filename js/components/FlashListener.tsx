@@ -4,7 +4,7 @@
 //
 //   - `flash.toast` → show via the App Bridge toast bridge.
 //   - `flash.banner` → forward to the `onBanner` callback (the consumer wires
-//     this to the notices stack from U6).
+//     this to the notices stack).
 //
 // Named action handlers (`{ handler: 'name', params: {...} }`) are resolved
 // against the `useFlashHandlers()` registry. If the handler isn't registered
@@ -26,18 +26,10 @@ import type { BannerPayload, FlashEnvelope, ToastAction, ToastPayload } from "..
 export interface FlashListenerProps {
 	/**
 	 * Called when a flash carries a banner payload. Consumers wire this to
-	 * `useNotices().add` (lands in U6). Optional so tests and toast-only
-	 * consumers can mount the listener without it.
+	 * `useNotices().add`. Optional so tests and toast-only consumers can mount
+	 * the listener without it.
 	 */
 	onBanner?: (banner: BannerPayload) => void;
-}
-
-/**
- * Drain one microtask so a same-tick `register()` call settles before we look
- * up the handler. Exposed as a small wrapper so tests can wait the same way.
- */
-function nextMicrotask(): Promise<void> {
-	return Promise.resolve();
 }
 
 interface ResolvedHandlerAction {
@@ -80,7 +72,7 @@ async function resolveHandlerAction(action: ToastAction): Promise<ResolvedAction
 			unsubscribe();
 			resolve(true);
 		});
-		nextMicrotask().then(() => {
+		Promise.resolve().then(() => {
 			unsubscribe();
 			resolve(false);
 		});

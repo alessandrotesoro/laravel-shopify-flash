@@ -36,24 +36,14 @@ final class JsonResponseMacros
         }
 
         JsonResponse::macro('withFlash', function (FlashEnvelope|ToastPayload|BannerPayload $flash): JsonResponse {
-            $envelope = match (true) {
-                $flash instanceof FlashEnvelope => $flash,
-                $flash instanceof ToastPayload => new FlashEnvelope(toast: $flash),
-                $flash instanceof BannerPayload => new FlashEnvelope(banner: $flash),
-            };
-
             /** @var JsonResponse $this */
-            $data = $this->getData(true);
-
-            if (! is_array($data)) {
-                $data = [];
-            }
+            $data = $this->getData(true) ?? [];
 
             if (array_key_exists('notice', $data)) {
                 throw new LogicException("withFlash() cannot overwrite an existing top-level 'notice' key on the response body.");
             }
 
-            $data['notice'] = $envelope->toArray();
+            $data['notice'] = FlashEnvelope::wrap($flash)->toArray();
 
             $this->setData($data);
 

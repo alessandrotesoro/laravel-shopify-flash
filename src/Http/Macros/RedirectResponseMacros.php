@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Sematico\ShopifyFlash\Http\Macros;
 
-use Closure;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use RuntimeException;
@@ -34,56 +33,59 @@ final class RedirectResponseMacros
 
     public static function register(): void
     {
-        self::registerMacro('withToast', function (ToastPayload|string $toast): RedirectResponse {
-            $payload = $toast instanceof ToastPayload
-                ? $toast
-                : ToastPayload::success($toast);
+        if (self::shouldRegister('withToast')) {
+            RedirectResponse::macro('withToast', function (ToastPayload|string $toast): RedirectResponse {
+                /** @var RedirectResponse $this */
+                $payload = $toast instanceof ToastPayload
+                    ? $toast
+                    : ToastPayload::success($toast);
 
-            Inertia::flash('toast', $payload->toArray());
+                Inertia::flash('toast', $payload->toArray());
 
-            /** @var RedirectResponse $this */
-            return $this;
-        });
+                return $this;
+            });
+        }
 
-        self::registerMacro('withBanner', function (BannerPayload $banner): RedirectResponse {
-            Inertia::flash('banner', $banner->toArray());
+        if (self::shouldRegister('withBanner')) {
+            RedirectResponse::macro('withBanner', function (BannerPayload $banner): RedirectResponse {
+                /** @var RedirectResponse $this */
+                Inertia::flash('banner', $banner->toArray());
 
-            /** @var RedirectResponse $this */
-            return $this;
-        });
+                return $this;
+            });
+        }
 
-        self::registerMacro('withFlash', function (BannerPayload|ToastPayload|FlashEnvelope $flash): RedirectResponse {
-            $envelope = match (true) {
-                $flash instanceof FlashEnvelope => $flash,
-                $flash instanceof ToastPayload => new FlashEnvelope(toast: $flash),
-                $flash instanceof BannerPayload => new FlashEnvelope(banner: $flash),
-            };
+        if (self::shouldRegister('withFlash')) {
+            RedirectResponse::macro('withFlash', function (BannerPayload|ToastPayload|FlashEnvelope $flash): RedirectResponse {
+                /** @var RedirectResponse $this */
+                $envelope = FlashEnvelope::wrap($flash);
 
-            if ($envelope->toast !== null) {
-                Inertia::flash('toast', $envelope->toast->toArray());
-            }
+                if ($envelope->toast !== null) {
+                    Inertia::flash('toast', $envelope->toast->toArray());
+                }
 
-            if ($envelope->banner !== null) {
-                Inertia::flash('banner', $envelope->banner->toArray());
-            }
+                if ($envelope->banner !== null) {
+                    Inertia::flash('banner', $envelope->banner->toArray());
+                }
 
-            /** @var RedirectResponse $this */
-            return $this;
-        });
+                return $this;
+            });
+        }
     }
 
-    private static function registerMacro(string $name, Closure $macro): void
+    private static function shouldRegister(string $name): bool
     {
         if (isset(self::$registered[$name])) {
             // Already registered by us in this process — re-bootstrap is a no-op.
-            return;
+            return false;
         }
 
         if (RedirectResponse::hasMacro($name)) {
             throw new RuntimeException("Cannot register {$name} macro — already defined.");
         }
 
-        RedirectResponse::macro($name, $macro);
         self::$registered[$name] = true;
+
+        return true;
     }
 }

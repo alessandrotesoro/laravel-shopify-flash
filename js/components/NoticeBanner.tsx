@@ -77,12 +77,12 @@ export function NoticeBanner({ notice }: NoticeBannerProps) {
 			ref={elementRef}
 			heading={notice.heading}
 			tone={notice.tone}
-			{...(dismissible ? { dismissible: true } : {})}
-			{...(hidden ? { hidden: true } : {})}
+			dismissible={dismissible || undefined}
+			hidden={hidden || undefined}
 		>
 			{notice.description}
-			{notice.actions?.map((action, index) => (
-				<NoticeBannerAction key={`${notice.id}-action-${index}`} action={action} />
+			{notice.actions?.map((action) => (
+				<NoticeBannerAction key={`${notice.id}-${action.label}`} action={action} />
 			))}
 		</s-banner>
 	);

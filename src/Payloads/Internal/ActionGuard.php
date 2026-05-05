@@ -7,12 +7,9 @@ namespace Sematico\ShopifyFlash\Payloads\Internal;
 use Closure;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
-use Sematico\ShopifyFlash\Payloads\BannerAction;
-use Sematico\ShopifyFlash\Payloads\ToastAction;
 
 /**
- * Internal validation helpers shared by {@see BannerAction}
- * and {@see ToastAction}.
+ * Internal validation helpers shared by the action payload classes.
  *
  * Centralizes URL safety and JSON-serializable params checks so both action
  * types apply identical guarantees.
@@ -49,13 +46,7 @@ final class ActionGuard
             throw new InvalidArgumentException("Action URL must be a relative path or an absolute http(s) URL: {$url}");
         }
 
-        $parts = parse_url($trimmed);
-
-        if ($parts === false || ! isset($parts['host'])) {
-            throw new InvalidArgumentException("Action URL must be a relative path or an absolute http(s) URL: {$url}");
-        }
-
-        $host = strtolower($parts['host']);
+        $host = strtolower((string) parse_url($trimmed, PHP_URL_HOST));
 
         if ($host === 'admin.shopify.com' || str_ends_with($host, '.myshopify.com')) {
             return;

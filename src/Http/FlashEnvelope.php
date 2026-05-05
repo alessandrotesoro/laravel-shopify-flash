@@ -15,7 +15,7 @@ use Sematico\ShopifyFlash\Payloads\ToastPayload;
  *
  * Shape: `{ toast?: ToastPayload, banner?: BannerPayload }` — both keys optional, at least
  * one required. Lowercase keys match the Inertia v3 `usePage().flash.toast` / `.banner` access
- * pattern declared in U4.
+ * pattern.
  */
 final readonly class FlashEnvelope implements Arrayable, JsonSerializable
 {
@@ -26,6 +26,18 @@ final readonly class FlashEnvelope implements Arrayable, JsonSerializable
         if ($toast === null && $banner === null) {
             throw new InvalidArgumentException('FlashEnvelope requires at least one of: toast, banner.');
         }
+    }
+
+    /**
+     * Coerce a bare payload into an envelope, or pass an existing envelope through.
+     */
+    public static function wrap(self|ToastPayload|BannerPayload $flash): self
+    {
+        return match (true) {
+            $flash instanceof self => $flash,
+            $flash instanceof ToastPayload => new self(toast: $flash),
+            $flash instanceof BannerPayload => new self(banner: $flash),
+        };
     }
 
     /**

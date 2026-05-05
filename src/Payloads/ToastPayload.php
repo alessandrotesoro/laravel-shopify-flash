@@ -11,7 +11,7 @@ use JsonSerializable;
 /**
  * Strict, JSON-serializable value object matching the Shopify App Bridge `Toast.show` options.
  *
- * Wire shape (lowercase keys to match the JS `flashDataType` declared in U4):
+ * Wire shape (lowercase keys to match the JS `flashDataType`):
  * `{ message, isError?, duration?, action? }`
  */
 final readonly class ToastPayload implements Arrayable, JsonSerializable

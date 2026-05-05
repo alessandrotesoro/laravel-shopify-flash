@@ -70,8 +70,11 @@ function registerHandler(name: string, fn: FlashHandler): () => void {
 	registry.set(name, fn);
 	const bucket = waiters.get(name);
 	if (bucket) {
-		// Drain waiters in registration order; each waiter unsubscribes itself.
-		for (const waiter of Array.from(bucket)) {
+		// Each waiter calls its own unsubscribe, mutating `bucket`. Set
+		// iteration under in-place deletion is well-defined in JS — already-
+		// visited entries stay visited, removed-but-unvisited entries are
+		// skipped — so no snapshot is needed.
+		for (const waiter of bucket) {
 			waiter();
 		}
 	}

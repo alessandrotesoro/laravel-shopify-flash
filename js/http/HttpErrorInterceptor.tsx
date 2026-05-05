@@ -21,7 +21,7 @@
 import { HttpCancelledError, HttpNetworkError, HttpResponseError } from "@inertiajs/core";
 import { http, router } from "@inertiajs/react";
 import { useAppBridge } from "@shopify/app-bridge-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { asShopifyApi, showToast } from "../bridge/toast-bridge";
 import { useNoticesContext } from "../components/NoticesProvider";
 import { isSafeUrl } from "../security/url-guard";
@@ -79,14 +79,7 @@ function resolveMessages(overrides?: FallbackMessages): Required<FallbackMessage
 	if (!overrides) {
 		return DEFAULT_MESSAGES;
 	}
-	return {
-		networkError: overrides.networkError ?? DEFAULT_MESSAGES.networkError,
-		sessionExpired: overrides.sessionExpired ?? DEFAULT_MESSAGES.sessionExpired,
-		forbidden: overrides.forbidden ?? DEFAULT_MESSAGES.forbidden,
-		rateLimited: overrides.rateLimited ?? DEFAULT_MESSAGES.rateLimited,
-		fileTooLarge: overrides.fileTooLarge ?? DEFAULT_MESSAGES.fileTooLarge,
-		unexpected: overrides.unexpected ?? DEFAULT_MESSAGES.unexpected,
-	};
+	return { ...DEFAULT_MESSAGES, ...overrides };
 }
 
 interface ParsedEnvelope {
@@ -219,6 +212,7 @@ const SESSION_EXPIRED_BANNER_ID = "shopify-flash:session-expired";
 export function HttpErrorInterceptor({ fallbackMessages }: HttpErrorInterceptorProps = {}) {
 	const { add } = useNoticesContext();
 	const shopify = asShopifyApi(useAppBridge());
+	const messages = useMemo(() => resolveMessages(fallbackMessages), [fallbackMessages]);
 
 	// Use refs so the effect that subscribes to `http.onError` doesn't tear
 	// down and re-subscribe on every render — but still reads the latest
@@ -227,8 +221,8 @@ export function HttpErrorInterceptor({ fallbackMessages }: HttpErrorInterceptorP
 	addRef.current = add;
 	const shopifyRef = useRef(shopify);
 	shopifyRef.current = shopify;
-	const messagesRef = useRef(resolveMessages(fallbackMessages));
-	messagesRef.current = resolveMessages(fallbackMessages);
+	const messagesRef = useRef(messages);
+	messagesRef.current = messages;
 
 	useEffect(() => {
 		return http.onError((error) => {
