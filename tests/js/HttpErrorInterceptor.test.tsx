@@ -46,6 +46,8 @@ import { NoticesProvider } from "../../js/components/NoticesProvider";
 import { useNotices } from "../../js/hooks/useNotices";
 import {
 	__resetSessionReloadGuard,
+	DEFAULT_MESSAGES,
+	FALLBACK_BY_STATUS,
 	type FallbackMessages,
 	HttpErrorInterceptor,
 } from "../../js/http/HttpErrorInterceptor";
@@ -189,44 +191,45 @@ describe("<HttpErrorInterceptor />", () => {
 		expect(screen.getByTestId("last-tone").textContent).toBe("critical");
 	});
 
-	it("403 falls back to the 'forbidden' banner", () => {
+	it.each(
+		Object.entries(FALLBACK_BY_STATUS).map(
+			([rawStatus, entry]) => [Number(rawStatus), entry.messageKey, entry] as const,
+		),
+	)("status %i routes to the '%s' fallback banner", (status, _messageKey, entry) => {
 		render(
 			<NoticesProvider>
 				<Harness />
 			</NoticesProvider>,
 		);
 
-		fireError(makeResponseError(403, ""));
+		fireError(makeResponseError(status, ""));
 
-		expect(screen.getByTestId("last-heading").textContent).toContain("permission");
-		expect(screen.getByTestId("last-tone").textContent).toBe("critical");
-	});
-
-	it("429 falls back to the 'rateLimited' banner with warning tone", () => {
-		render(
-			<NoticesProvider>
-				<Harness />
-			</NoticesProvider>,
+		expect(screen.getByTestId("last-heading").textContent).toBe(
+			DEFAULT_MESSAGES[entry.messageKey].heading,
 		);
-
-		fireError(makeResponseError(429, ""));
-
-		expect(screen.getByTestId("last-heading").textContent).toBe("Too many requests");
-		expect(screen.getByTestId("last-tone").textContent).toBe("warning");
-	});
-
-	it("413 falls back to the 'fileTooLarge' banner with warning tone", () => {
-		render(
-			<NoticesProvider>
-				<Harness />
-			</NoticesProvider>,
+		expect(screen.getByTestId("last-tone").textContent).toBe(entry.tone);
+		expect(screen.getByTestId("last-dismissible").textContent).toBe(
+			entry.dismissible ? "true" : "false",
 		);
-
-		fireError(makeResponseError(413, ""));
-
-		expect(screen.getByTestId("last-heading").textContent).toBe("File too large");
-		expect(screen.getByTestId("last-tone").textContent).toBe("warning");
 	});
+
+	it.each([408, 502, 504])(
+		"status %i without a special case falls through to the 'unexpected' critical banner",
+		(status) => {
+			render(
+				<NoticesProvider>
+					<Harness />
+				</NoticesProvider>,
+			);
+
+			fireError(makeResponseError(status, ""));
+
+			expect(screen.getByTestId("last-heading").textContent).toBe(
+				DEFAULT_MESSAGES.unexpected.heading,
+			);
+			expect(screen.getByTestId("last-tone").textContent).toBe("critical");
+		},
+	);
 
 	it("401 surfaces a non-dismissable critical banner and triggers router.reload()", () => {
 		render(

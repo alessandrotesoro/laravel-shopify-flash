@@ -52,7 +52,7 @@ export interface FallbackMessages {
 	unexpected?: BannerMessage;
 }
 
-const DEFAULT_MESSAGES: Required<FallbackMessages> = {
+export const DEFAULT_MESSAGES: Required<FallbackMessages> = {
 	networkError: "Network error. Check your connection and try again.",
 	sessionExpired: {
 		heading: "Your session has expired",
@@ -169,20 +169,40 @@ function sanitizeBannerActions(banner: BannerPayload): BannerPayload {
 	return { ...banner, actions: safe };
 }
 
+type BannerMessageKey = Exclude<
+	keyof Required<FallbackMessages>,
+	"networkError" | "sessionExpired"
+>;
+
+export interface FallbackEntry {
+	messageKey: BannerMessageKey;
+	tone: Tone;
+	dismissible: boolean;
+}
+
+/**
+ * Status → fallback-banner mapping for no-envelope responses. 401/419 and 422
+ * are routed separately in the interceptor and intentionally absent. Statuses
+ * not listed fall through to the `unexpected` entry.
+ */
+export const FALLBACK_BY_STATUS: Record<number, FallbackEntry> = {
+	403: { messageKey: "forbidden", tone: "critical", dismissible: true },
+	413: { messageKey: "fileTooLarge", tone: "warning", dismissible: true },
+	429: { messageKey: "rateLimited", tone: "warning", dismissible: true },
+};
+
+const UNEXPECTED_FALLBACK: FallbackEntry = {
+	messageKey: "unexpected",
+	tone: "critical",
+	dismissible: true,
+};
+
 function fallbackBannerForStatus(
 	status: number,
 	messages: Required<FallbackMessages>,
 ): BannerPayload {
-	if (status === 403) {
-		return { ...messages.forbidden, tone: "critical", dismissible: true };
-	}
-	if (status === 413) {
-		return { ...messages.fileTooLarge, tone: "warning", dismissible: true };
-	}
-	if (status === 429) {
-		return { ...messages.rateLimited, tone: "warning", dismissible: true };
-	}
-	return { ...messages.unexpected, tone: "critical", dismissible: true };
+	const entry = FALLBACK_BY_STATUS[status] ?? UNEXPECTED_FALLBACK;
+	return { ...messages[entry.messageKey], tone: entry.tone, dismissible: entry.dismissible };
 }
 
 export interface HttpErrorInterceptorProps {
