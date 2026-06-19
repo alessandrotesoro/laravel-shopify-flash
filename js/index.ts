@@ -9,8 +9,10 @@ export type { FlashHandler } from "./hooks/useFlashHandlers";
 export { useFlashHandlers } from "./hooks/useFlashHandlers";
 export type { Notice, UseNoticesReturn } from "./hooks/useNotices";
 export { useNotices } from "./hooks/useNotices";
-export type { FallbackMessages, HttpErrorInterceptorProps } from "./http/HttpErrorInterceptor";
-export { HttpErrorInterceptor } from "./http/HttpErrorInterceptor";
+export type { UseToastReturn } from "./hooks/useToast";
+export { useToast } from "./hooks/useToast";
+export type { FallbackMessages, FlashHttpInterceptorProps } from "./http/FlashHttpInterceptor";
+export { FlashHttpInterceptor } from "./http/FlashHttpInterceptor";
 export type {
 	BannerAction,
 	BannerPayload,

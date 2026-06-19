@@ -1,10 +1,21 @@
-// XHR error → notices interceptor.
+// Unified XHR flash interceptor.
 //
-// Subscribes to Inertia v3's `http.onError(...)` and routes every failure into
-// either the notices context (4xx/5xx that we own UX for) or — for transport-
-// level failures with no response — a single direct toast call.
+// Subscribes to Inertia v3's `http.onResponse(...)` (success) and
+// `http.onError(...)` (failure) and routes each into the toast bridge / notices
+// context. Inertia visits render flash via `<FlashListener />` (router.on
+// 'flash'); standalone `useHttp` requests render it here. `onResponse` fires for
+// every 2xx (Inertia page visits included), but the success path only acts on a
+// top-level `notice` key — written solely by `JsonResponse::withFlash`. Inertia
+// page responses carry flash inside the page object (props.flash), so this
+// handler is a no-op for them and a given flash payload renders exactly once.
 //
-// Routing rules:
+// Success (2xx) — read the `notice` envelope merged by `JsonResponse::withFlash`:
+//   - `notice.toast`  → show via the App Bridge toast bridge.
+//   - `notice.banner` → forward to the notices context.
+//   Toast actions are intentionally not wired on this path (no per-toast action
+//   handler is available here); emit action toasts via Inertia flash instead.
+//
+// Failure routing (unchanged):
 //   - HttpCancelledError              → silently ignored
 //   - HttpResponseError, status 422   → silently ignored (Inertia owns it)
 //   - HttpResponseError, status 401/419 → critical, non-dismissable banner +
@@ -26,7 +37,7 @@ import { asShopifyApi, showToast } from "../bridge/toast-bridge";
 import { useNoticesContext } from "../components/NoticesProvider";
 import { useLatestRef } from "../hooks/useLatestRef";
 import { isSafeUrl } from "../security/url-guard";
-import type { BannerAction, BannerPayload, Tone } from "../types";
+import type { BannerAction, BannerPayload, ToastPayload, Tone } from "../types";
 
 interface BannerMessage {
 	heading: string;
@@ -83,10 +94,6 @@ function resolveMessages(overrides?: FallbackMessages): Required<FallbackMessage
 	return { ...DEFAULT_MESSAGES, ...overrides };
 }
 
-interface ParsedEnvelope {
-	banner?: BannerPayload;
-}
-
 const VALID_TONES: ReadonlySet<string> = new Set([
 	"info",
 	"success",
@@ -109,11 +116,42 @@ function isBannerPayload(value: unknown): value is BannerPayload {
 	if (candidate.description !== undefined && typeof candidate.description !== "string") {
 		return false;
 	}
+	if (candidate.actions !== undefined && !Array.isArray(candidate.actions)) {
+		return false;
+	}
 	return true;
 }
 
-function parseResponseEnvelope(error: HttpResponseError): ParsedEnvelope | null {
-	const raw = error.response.data;
+/**
+ * Narrow an arbitrary value into a {@link ToastPayload}. Requires a non-empty
+ * string `message` (matching the PHP-side construction guard). `action` is not
+ * carried — the XHR-success path has no per-toast action handler.
+ */
+function toToastPayload(value: unknown): ToastPayload | undefined {
+	if (!value || typeof value !== "object") {
+		return undefined;
+	}
+	const candidate = value as Record<string, unknown>;
+	if (typeof candidate.message !== "string" || candidate.message.trim() === "") {
+		return undefined;
+	}
+	const out: ToastPayload = { message: candidate.message };
+	if (typeof candidate.isError === "boolean") {
+		out.isError = candidate.isError;
+	}
+	if (typeof candidate.duration === "number" && Number.isFinite(candidate.duration)) {
+		out.duration = candidate.duration;
+	}
+	return out;
+}
+
+/**
+ * Parse the response body (string or object) and return its `notice` object, or
+ * `null` when the body is unparseable or carries no `notice` key. Both the
+ * success and error paths read the envelope from the same `notice` key written
+ * by `withFlash()`.
+ */
+function extractNotice(raw: unknown): Record<string, unknown> | null {
 	let data: unknown;
 	if (typeof raw === "string") {
 		try {
@@ -129,22 +167,33 @@ function parseResponseEnvelope(error: HttpResponseError): ParsedEnvelope | null 
 	if (!data || typeof data !== "object") {
 		return null;
 	}
-	// `withFlash()` macro wraps the envelope under a top-level `notice` key
-	// so XHR responses can co-exist with arbitrary payload data. Read it
-	// back from there — not from the root.
 	const notice = (data as { notice?: unknown }).notice;
 	if (!notice || typeof notice !== "object") {
 		return null;
 	}
-	const envelope = notice as { banner?: unknown };
-	if (envelope.banner === undefined) {
-		return {} as ParsedEnvelope;
+	return notice as Record<string, unknown>;
+}
+
+/**
+ * Read toast + banner from a response body — used by both the success and error
+ * paths. Either field is absent when missing or invalid; the success path reads
+ * both, the error path reads only `banner` (and falls back to a status banner
+ * when it's absent). Never throws on a malformed body.
+ */
+function parseFlashNotice(raw: unknown): { toast?: ToastPayload; banner?: BannerPayload } {
+	const notice = extractNotice(raw);
+	if (notice === null) {
+		return {};
 	}
-	if (!isBannerPayload(envelope.banner)) {
-		return null;
+	const out: { toast?: ToastPayload; banner?: BannerPayload } = {};
+	const toast = toToastPayload(notice.toast);
+	if (toast) {
+		out.toast = toast;
 	}
-	const banner = sanitizeBannerActions(envelope.banner);
-	return { banner } satisfies ParsedEnvelope;
+	if (notice.banner !== undefined && isBannerPayload(notice.banner)) {
+		out.banner = sanitizeBannerActions(notice.banner);
+	}
+	return out;
 }
 
 /**
@@ -161,7 +210,9 @@ function sanitizeBannerActions(banner: BannerPayload): BannerPayload {
 		if (!("url" in action)) {
 			return true;
 		}
-		return isSafeUrl(action.url, origin);
+		// A malformed (non-string) url is treated as unsafe and dropped, rather
+		// than thrown — isSafeUrl assumes a string.
+		return typeof action.url === "string" && isSafeUrl(action.url, origin);
 	});
 	if (safe.length === banner.actions.length) {
 		return banner;
@@ -205,7 +256,7 @@ function fallbackBannerForStatus(
 	return { ...messages[entry.messageKey], tone: entry.tone, dismissible: entry.dismissible };
 }
 
-export interface HttpErrorInterceptorProps {
+export interface FlashHttpInterceptorProps {
 	/**
 	 * Override any subset of fallback strings used when a failure has no
 	 * envelope. Not needed when the package's English defaults are fine.
@@ -236,17 +287,39 @@ const SESSION_EXPIRED_BANNER_ID = "shopify-flash:session-expired";
  * Mount once near the root of the app, inside `<NoticesProvider />` and the
  * App Bridge provider. Returns `null`.
  */
-export function HttpErrorInterceptor({ fallbackMessages }: HttpErrorInterceptorProps = {}) {
+export function FlashHttpInterceptor({ fallbackMessages }: FlashHttpInterceptorProps = {}) {
 	const { add } = useNoticesContext();
 	const shopify = asShopifyApi(useAppBridge());
 	const messages = useMemo(() => resolveMessages(fallbackMessages), [fallbackMessages]);
 
-	// Refs keep the `http.onError` subscription stable across renders while
-	// still reading the latest values when an error fires.
+	// Refs keep the `http.on*` subscriptions stable across renders while still
+	// reading the latest values when an event fires.
 	const addRef = useLatestRef(add);
 	const shopifyRef = useLatestRef(shopify);
 	const messagesRef = useLatestRef(messages);
 
+	// Success path — drain the flash envelope from 2xx responses. The body is
+	// wrapped: a throw here would reject an otherwise-successful request (Inertia
+	// re-throws non-HttpError failures from the response chain), turning a 200
+	// into a caller-visible failure. Flash rendering must never do that.
+	useEffect(() => {
+		return http.onResponse((response) => {
+			try {
+				const { toast, banner } = parseFlashNotice(response.data);
+				if (toast) {
+					showToast(toast, {}, shopifyRef.current);
+				}
+				if (banner) {
+					addRef.current(banner);
+				}
+			} catch (err) {
+				console.error("[shopify-flash] success flash handler failed:", err);
+			}
+			return response;
+		});
+	}, []);
+
+	// Error path.
 	useEffect(() => {
 		return http.onError((error) => {
 			if (error instanceof HttpCancelledError) {
@@ -298,9 +371,9 @@ export function HttpErrorInterceptor({ fallbackMessages }: HttpErrorInterceptorP
 				return;
 			}
 
-			const envelope = parseResponseEnvelope(error);
-			if (envelope?.banner) {
-				addRef.current(envelope.banner);
+			const { banner } = parseFlashNotice(error.response.data);
+			if (banner) {
+				addRef.current(banner);
 				return;
 			}
 

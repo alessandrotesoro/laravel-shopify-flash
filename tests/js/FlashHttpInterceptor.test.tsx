@@ -1,8 +1,17 @@
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { errorHandlers, reloadSpy, toastShow, toastHide, cleanupSpy, finishHandlers } = vi.hoisted(() => ({
+const {
+	errorHandlers,
+	responseHandlers,
+	reloadSpy,
+	toastShow,
+	toastHide,
+	cleanupSpy,
+	finishHandlers,
+} = vi.hoisted(() => ({
 	errorHandlers: new Set<(error: unknown) => void>(),
+	responseHandlers: new Set<(response: unknown) => unknown>(),
 	finishHandlers: new Set<() => void>(),
 	reloadSpy: vi.fn(),
 	toastShow: vi.fn(() => "toast-1"),
@@ -17,6 +26,13 @@ vi.mock("@inertiajs/react", () => {
 				errorHandlers.add(handler);
 				return () => {
 					errorHandlers.delete(handler);
+					cleanupSpy();
+				};
+			},
+			onResponse: (handler: (response: unknown) => unknown) => {
+				responseHandlers.add(handler);
+				return () => {
+					responseHandlers.delete(handler);
 					cleanupSpy();
 				};
 			},
@@ -49,13 +65,14 @@ import {
 	DEFAULT_MESSAGES,
 	FALLBACK_BY_STATUS,
 	type FallbackMessages,
-	HttpErrorInterceptor,
-} from "../../js/http/HttpErrorInterceptor";
+	FlashHttpInterceptor,
+} from "../../js/http/FlashHttpInterceptor";
 
 let originalRAF: typeof globalThis.requestAnimationFrame;
 
 beforeEach(() => {
 	errorHandlers.clear();
+	responseHandlers.clear();
 	finishHandlers.clear();
 	reloadSpy.mockClear();
 	toastShow.mockClear();
@@ -89,6 +106,17 @@ function fireError(error: unknown): void {
 	});
 }
 
+function fireResponse(body: unknown, status = 200): unknown {
+	const data = typeof body === "string" ? body : JSON.stringify(body);
+	let result: unknown;
+	act(() => {
+		for (const handler of Array.from(responseHandlers)) {
+			result = handler({ status, data, headers: {} });
+		}
+	});
+	return result;
+}
+
 interface HarnessProps {
 	fallbackMessages?: FallbackMessages;
 }
@@ -103,29 +131,253 @@ function Harness({ fallbackMessages }: HarnessProps = {}) {
 			<div data-testid="last-dismissible">
 				{items[items.length - 1]?.dismissible === false ? "false" : "true"}
 			</div>
+			<div data-testid="last-actions">{items[items.length - 1]?.actions?.length ?? 0}</div>
 			{fallbackMessages !== undefined ? (
-				<HttpErrorInterceptor fallbackMessages={fallbackMessages} />
+				<FlashHttpInterceptor fallbackMessages={fallbackMessages} />
 			) : (
-				<HttpErrorInterceptor />
+				<FlashHttpInterceptor />
 			)}
 		</>
 	);
 }
 
-describe("<HttpErrorInterceptor />", () => {
-	it("subscribes on mount, unsubscribes on unmount", () => {
+describe("<FlashHttpInterceptor /> — success path", () => {
+	it("subscribes to both onResponse and onError on mount, unsubscribes on unmount", () => {
 		const { unmount } = render(
 			<NoticesProvider>
 				<Harness />
 			</NoticesProvider>,
 		);
 		expect(errorHandlers.size).toBe(1);
+		expect(responseHandlers.size).toBe(1);
 
 		unmount();
 		expect(errorHandlers.size).toBe(0);
-		expect(cleanupSpy).toHaveBeenCalledTimes(1);
+		expect(responseHandlers.size).toBe(0);
+		expect(cleanupSpy).toHaveBeenCalledTimes(2);
 	});
 
+	it("success response carrying notice.toast shows the toast and adds no banner", () => {
+		render(
+			<NoticesProvider>
+				<Harness />
+			</NoticesProvider>,
+		);
+
+		fireResponse({ notice: { toast: { message: "File deleted" } } });
+
+		expect(toastShow).toHaveBeenCalledTimes(1);
+		expect(toastShow.mock.calls[0]?.[0]).toBe("File deleted");
+		expect(screen.getByTestId("count").textContent).toBe("0");
+	});
+
+	it("success response carrying notice.banner adds the banner and shows no toast", () => {
+		render(
+			<NoticesProvider>
+				<Harness />
+			</NoticesProvider>,
+		);
+
+		fireResponse({
+			notice: { banner: { heading: "Synced", tone: "success", description: "All good." } },
+		});
+
+		expect(toastShow).not.toHaveBeenCalled();
+		expect(screen.getByTestId("count").textContent).toBe("1");
+		expect(screen.getByTestId("last-heading").textContent).toBe("Synced");
+		expect(screen.getByTestId("last-tone").textContent).toBe("success");
+	});
+
+	it("success response carrying both dispatches each exactly once", () => {
+		render(
+			<NoticesProvider>
+				<Harness />
+			</NoticesProvider>,
+		);
+
+		fireResponse({
+			notice: {
+				toast: { message: "Product created" },
+				banner: { heading: "Heads up", tone: "info" },
+			},
+		});
+
+		expect(toastShow).toHaveBeenCalledTimes(1);
+		expect(screen.getByTestId("count").textContent).toBe("1");
+	});
+
+	it("toast isError flag is forwarded to the bridge", () => {
+		render(
+			<NoticesProvider>
+				<Harness />
+			</NoticesProvider>,
+		);
+
+		fireResponse({ notice: { toast: { message: "Nope", isError: true } } });
+
+		expect(toastShow.mock.calls[0]?.[1]).toMatchObject({ isError: true });
+	});
+
+	it("success response with no notice does nothing and passes the response through", () => {
+		render(
+			<NoticesProvider>
+				<Harness />
+			</NoticesProvider>,
+		);
+
+		const passed = fireResponse({ productId: 42 });
+
+		expect(toastShow).not.toHaveBeenCalled();
+		expect(screen.getByTestId("count").textContent).toBe("0");
+		expect(passed).toMatchObject({ status: 200 });
+	});
+
+	it("success response with non-JSON body is ignored without throwing", () => {
+		render(
+			<NoticesProvider>
+				<Harness />
+			</NoticesProvider>,
+		);
+
+		expect(() => fireResponse("<html>not json</html>")).not.toThrow();
+		expect(toastShow).not.toHaveBeenCalled();
+		expect(screen.getByTestId("count").textContent).toBe("0");
+	});
+
+	it("success response with an empty-message toast is ignored", () => {
+		render(
+			<NoticesProvider>
+				<Harness />
+			</NoticesProvider>,
+		);
+
+		fireResponse({ notice: { toast: { message: "   " } } });
+
+		expect(toastShow).not.toHaveBeenCalled();
+	});
+
+	it("toast duration is forwarded to the bridge", () => {
+		render(
+			<NoticesProvider>
+				<Harness />
+			</NoticesProvider>,
+		);
+
+		fireResponse({ notice: { toast: { message: "Done", duration: 3000 } } });
+
+		expect(toastShow.mock.calls[0]?.[1]).toMatchObject({ duration: 3000 });
+	});
+
+	it("a non-finite toast duration is dropped", () => {
+		render(
+			<NoticesProvider>
+				<Harness />
+			</NoticesProvider>,
+		);
+
+		fireResponse({ notice: { toast: { message: "Done", duration: Number.NaN } } });
+
+		expect(toastShow.mock.calls[0]?.[1]).not.toHaveProperty("duration");
+	});
+
+	it("handles a response body delivered as a pre-parsed object (not a string)", () => {
+		render(
+			<NoticesProvider>
+				<Harness />
+			</NoticesProvider>,
+		);
+
+		let passed: unknown;
+		act(() => {
+			for (const handler of Array.from(responseHandlers)) {
+				passed = handler({
+					status: 200,
+					data: { notice: { toast: { message: "Object body" } } },
+					headers: {},
+				});
+			}
+		});
+
+		expect(toastShow.mock.calls[0]?.[0]).toBe("Object body");
+		expect(passed).toMatchObject({ status: 200 });
+	});
+
+	it("a malformed banner on success (invalid tone) is dropped, no toast, no throw", () => {
+		render(
+			<NoticesProvider>
+				<Harness />
+			</NoticesProvider>,
+		);
+
+		expect(() =>
+			fireResponse({ notice: { banner: { heading: "Bad", tone: "not-a-tone" } } }),
+		).not.toThrow();
+		expect(screen.getByTestId("count").textContent).toBe("0");
+		expect(toastShow).not.toHaveBeenCalled();
+	});
+
+	it("a success banner with non-array actions is dropped without throwing (200 stays a success)", () => {
+		render(
+			<NoticesProvider>
+				<Harness />
+			</NoticesProvider>,
+		);
+
+		let passed: unknown;
+		expect(() => {
+			passed = fireResponse({
+				notice: { banner: { heading: "X", tone: "info", actions: "oops" } },
+			});
+		}).not.toThrow();
+		expect(screen.getByTestId("count").textContent).toBe("0");
+		expect(passed).toMatchObject({ status: 200 });
+	});
+
+	it("a success banner action with a cross-origin URL is stripped; the banner still renders", () => {
+		render(
+			<NoticesProvider>
+				<Harness />
+			</NoticesProvider>,
+		);
+
+		fireResponse({
+			notice: {
+				banner: {
+					heading: "Saved",
+					tone: "success",
+					actions: [{ label: "Go", url: "https://evil.example/steal" }],
+				},
+			},
+		});
+
+		expect(screen.getByTestId("count").textContent).toBe("1");
+		expect(screen.getByTestId("last-actions").textContent).toBe("0");
+	});
+
+	it("a success banner action with a non-string URL is dropped without throwing", () => {
+		render(
+			<NoticesProvider>
+				<Harness />
+			</NoticesProvider>,
+		);
+
+		expect(() =>
+			fireResponse({
+				notice: {
+					banner: {
+						heading: "X",
+						tone: "info",
+						actions: [{ label: "Bad", url: 123 }],
+					},
+				},
+			}),
+		).not.toThrow();
+		expect(screen.getByTestId("count").textContent).toBe("1");
+		expect(screen.getByTestId("last-actions").textContent).toBe("0");
+	});
+});
+
+describe("<FlashHttpInterceptor /> — error path (preserved)", () => {
 	it("HttpCancelledError is silently ignored", () => {
 		render(
 			<NoticesProvider>
@@ -162,13 +414,7 @@ describe("<HttpErrorInterceptor />", () => {
 
 		fireError(
 			makeResponseError(500, {
-				notice: {
-					banner: {
-						heading: "Boom",
-						tone: "critical",
-						description: "Server exploded.",
-					},
-				},
+				notice: { banner: { heading: "Boom", tone: "critical", description: "Server exploded." } },
 			}),
 		);
 

@@ -58,8 +58,8 @@ This augments `@inertiajs/core`'s `InertiaConfig` so `usePage().flash.toast` and
 ```tsx
 // resources/js/layouts/app-shell.tsx
 import {
+  FlashHttpInterceptor,
   FlashListener,
-  HttpErrorInterceptor,
   NoticesContainer,
   NoticesProvider,
   useNotices,
@@ -70,7 +70,7 @@ function NoticeBridge({ children }: { children: React.ReactNode }) {
   return (
     <>
       <FlashListener onBanner={add} />
-      <HttpErrorInterceptor />
+      <FlashHttpInterceptor />
       {children}
     </>
   );
@@ -152,7 +152,7 @@ The package owns this policy table for all consuming Sematico apps. Consuming ap
 |---|---|
 | User-initiated success, ≤3 words, `[object] [action]` (e.g. "File deleted", "Product created") | `back()->withToast(...)` from the controller; renders as a Shopify App Bridge toast |
 | Errors, warnings, ≥4-word messages, anything not a fresh user-initiated success | `back()->withBanner(BannerPayload::critical|warning|info|success(...))` from the controller; renders as `<s-banner>` |
-| Backend XHR errors (4xx/5xx response data) | Return the JSON envelope: `response()->json(['ok' => false])->withFlash(BannerPayload::critical(...))`. The `HttpErrorInterceptor` routes the envelope into the notices context. |
+| Backend XHR errors (4xx/5xx response data) | Return the JSON envelope: `response()->json(['ok' => false])->withFlash(BannerPayload::critical(...))`. The `FlashHttpInterceptor` routes the envelope into the notices context. |
 | Transport-level error with no response (`HttpNetworkError`) | Handled automatically by the package — single direct toast from the bridge, the one allowlisted exception |
 | Programmatic notice from React (sync flow, modal cleanup, etc.) | `useNotices().add(...)` — convenience methods `info()`, `success()`, `warning()`, `critical()` available |
 
