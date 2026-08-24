@@ -1,0 +1,104 @@
+name: Publish npm package
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish after a failed release-event run
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-release-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out the published release tag
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+          package-manager-cache: false
+          registry-url: https://registry.npmjs.org
+
+      - name: Verify release identity and package version
+        env:
+          EXPECTED_PACKAGE: "@sematico/shopify-flash"
+          EXPECTED_VERSION: "0.0.2"
+          EXPECTED_OWNER: "alessandrotesoro"
+          RELEASE_ACTOR: ${{ github.actor }}
+          RELEASE_AUTHOR: ${{ github.event.release.author.login || github.actor }}
+          RELEASE_PRERELEASE: ${{ github.event.release.prerelease || false }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "alessandrotesoro/laravel-shopify-flash"
+          test "$RELEASE_ACTOR" = "$EXPECTED_OWNER"
+          if [ "${{ github.event_name }}" = "release" ]; then
+            test "$RELEASE_AUTHOR" = "$EXPECTED_OWNER"
+            test "$RELEASE_PRERELEASE" = "false"
+          fi
+          test "$RELEASE_TAG" = "v$EXPECTED_VERSION"
+          test "$(git cat-file -t "refs/tags/$RELEASE_TAG")" = "tag"
+          tag_commit="$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
+          test "$tag_commit" = "$(git rev-parse HEAD)"
+          package_name="$(node -p "require('./package.json').name")"
+          package_version="$(node -p "require('./package.json').version")"
+          test "$package_name" = "$EXPECTED_PACKAGE"
+          test "$package_version" = "$EXPECTED_VERSION"
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run package dry-run
+        run: npm pack --dry-run --json
+
+      - name: Check published package version
+        id: published
+        env:
+          EXPECTED_PACKAGE: "@sematico/shopify-flash"
+          EXPECTED_VERSION: "0.0.2"
+        run: |
+          if npm view "$EXPECTED_PACKAGE@$EXPECTED_VERSION" version >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "$EXPECTED_PACKAGE@$EXPECTED_VERSION already exists; refusing to republish it."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to npm with trusted publishing
+        if: steps.published.outputs.exists != 'true'
+        run: npm publish --access public --provenance --ignore-scripts
+
+      - name: Verify public npm publication
+        env:
+          EXPECTED_PACKAGE: "@sematico/shopify-flash"
+          EXPECTED_VERSION: "0.0.2"
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            echo "Checking npm visibility (attempt $attempt/6)."
+            if npm view "$EXPECTED_PACKAGE@$EXPECTED_VERSION" version >/dev/null 2>&1; then
+              npm view "$EXPECTED_PACKAGE@$EXPECTED_VERSION" version
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "$EXPECTED_PACKAGE@$EXPECTED_VERSION was not visible on npm after publication."
+          exit 1
