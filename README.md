@@ -1,5 +1,10 @@
 # Shopify Flash
 
+[![Packagist Version](https://img.shields.io/packagist/v/sematico/laravel-shopify-flash?style=flat-square)](https://packagist.org/packages/sematico/laravel-shopify-flash)
+[![npm version](https://img.shields.io/npm/v/%40sematico%2Fshopify-flash?style=flat-square)](https://www.npmjs.com/package/@sematico/shopify-flash)
+[![Tests](https://github.com/alessandrotesoro/laravel-shopify-flash/actions/workflows/run-tests.yml/badge.svg?branch=main)](https://github.com/alessandrotesoro/laravel-shopify-flash/actions/workflows/run-tests.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE.md)
+
 Share Laravel flash responses with an Inertia.js React app and render them through Shopify App Bridge toasts and Polaris `<s-banner>` notices. The repository contains a Composer package for the backend and an npm package for the frontend.
 
 | Package | Install from |
