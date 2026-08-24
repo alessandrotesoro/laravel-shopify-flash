@@ -7,9 +7,6 @@ Share Laravel flash responses with an Inertia.js React app and render them throu
 | `sematico/laravel-shopify-flash` | [Packagist](https://packagist.org/packages/sematico/laravel-shopify-flash) |
 | `@sematico/shopify-flash` | [npm](https://www.npmjs.com/package/@sematico/shopify-flash) |
 
-> [!NOTE]
-> This is a 0.x release. Keep the backend and frontend packages on the same release version when upgrading them together.
-
 ## Requirements
 
 - PHP 8.4 or newer
