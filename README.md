@@ -178,3 +178,7 @@ npm pack --dry-run
 ```
 
 The npm package is built from `js/index.ts` into `dist/`. It publishes the compiled bundle, declarations, source TypeScript files, and the project documentation.
+
+## License
+
+This package is open-sourced software licensed under the [MIT license](LICENSE.md).
