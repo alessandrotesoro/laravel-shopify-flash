@@ -33,11 +33,6 @@ jobs:
       - name: Run tests
         run: vendor/bin/pest --ci
 
-      # No Packagist publish step — distribution is via git VCS.
-      # Consumers add a `repositories` entry pointing at this repo and require
-      # `sematico/laravel-shopify-flash: ^0.0` (Composer reads the version
-      # from the tag directly; no `version` field in composer.json per the
-      # Composer schema docs).
       - name: Tag confirmation
         run: |
-          echo "::notice title=Composer publish::Tag ${GITHUB_REF_NAME} is now installable via git VCS as sematico/laravel-shopify-flash:${GITHUB_REF_NAME}"
+          echo "::notice title=Composer publish::Tag ${GITHUB_REF_NAME} is ready for Packagist synchronization as sematico/laravel-shopify-flash."

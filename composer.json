@@ -1,6 +1,6 @@
 {
     "name": "sematico/laravel-shopify-flash",
-    "description": "Shared Laravel + Inertia v3 + React package standardizing Shopify App Bridge toast and Polaris s-banner UX across Sematico apps",
+    "description": "Shared Laravel + Inertia v3 + React package for Shopify App Bridge toasts and Polaris s-banner notices",
     "keywords": [
         "Sematico",
         "laravel",
@@ -69,5 +69,9 @@
                 "Sematico\\ShopifyFlash\\ShopifyFlashServiceProvider"
             ]
         }
+    },
+    "support": {
+        "issues": "https://github.com/alessandrotesoro/laravel-shopify-flash/issues",
+        "source": "https://github.com/alessandrotesoro/laravel-shopify-flash"
     }
 }
