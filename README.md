@@ -1,62 +1,46 @@
-# @sematico/shopify-flash + sematico/laravel-shopify-flash
+# Shopify Flash
 
-Shared Laravel + Inertia v3 + React package standardizing **Shopify App Bridge toast** and **Polaris `<s-banner>`** UX across Sematico apps. Backend declares feedback via `Inertia::flash()`; a single client-side listener routes payloads to the right App Bridge surface.
+Share Laravel flash responses with an Inertia.js React app and render them through Shopify App Bridge toasts and Polaris `<s-banner>` notices. The repository contains a Composer package for the backend and an npm package for the frontend.
 
-> **Status:** v0.x is pre-stable. APIs may break between v0.x bumps.
+| Package | Install from |
+| --- | --- |
+| `sematico/laravel-shopify-flash` | [Packagist](https://packagist.org/packages/sematico/laravel-shopify-flash) |
+| `@sematico/shopify-flash` | [npm](https://www.npmjs.com/package/@sematico/shopify-flash) |
 
-## Stack requirements
+> [!NOTE]
+> This is a 0.x release. Keep the backend and frontend packages on the same release version when upgrading them together.
 
-- PHP `^8.4`, Laravel `^11||^12||^13`
-- `inertiajs/inertia-laravel: ^3.0` (native `Inertia::flash()` API required)
-- React `^19`, `@inertiajs/react: ^3`, `@shopify/app-bridge-react: ^4`
-- `@inertiajs/core: ^3` is a required peer alongside `@inertiajs/react` (the package imports `HttpResponseError` / `HttpNetworkError` / `HttpCancelledError` from core for `instanceof` checks; bundling them creates a second class identity and breaks the checks)
-- ESM-capable consumer (Vite, Vitest, modern Node, etc.). The package does not ship a CJS build.
+## Requirements
 
-## Install
+- PHP 8.4 or newer
+- Laravel 11, 12, or 13
+- `inertiajs/inertia-laravel` 3.0.5 or newer
+- React 19
+- `@inertiajs/core` and `@inertiajs/react` 3.x
+- `@shopify/app-bridge-react` 4.x
+- An ESM-capable frontend build
 
-Until private Packagist + private npm are wired up, install via git URL.
+## Installation
 
-**PHP (consuming app's `composer.json`):**
+Install the backend package:
 
-```jsonc
-{
-  "repositories": [
-    {
-      "type": "vcs",
-      "url": "git@github.com:alessandrotesoro/laravel-shopify-flash.git"
-    }
-  ],
-  "require": {
-    "sematico/laravel-shopify-flash": "^0.0.1"
-  }
-}
+```bash
+composer require sematico/laravel-shopify-flash
 ```
 
-**JS (consuming app's `package.json`):**
+Install the React package:
 
-```jsonc
-{
-  "dependencies": {
-    "@sematico/shopify-flash": "git+ssh://git@github.com/alessandrotesoro/laravel-shopify-flash.git#v0.0.1"
-  }
-}
+```bash
+npm install @sematico/shopify-flash
 ```
 
-## Quick start
+The Laravel service provider registers the response macros through package discovery. The npm package ships its compiled ESM bundle and TypeScript declarations.
 
-**1. Type the flash payload (consumer's own `.d.ts`):**
+## Frontend setup
 
-```ts
-// resources/js/types/shopify-flash.d.ts
-import "@sematico/shopify-flash/types";
-```
-
-This augments `@inertiajs/core`'s `InertiaConfig` so `usePage().flash.toast` and `.banner` are fully typed.
-
-**2. Mount the package in your app shell:**
+Mount the provider, listener, interceptor, and banner container inside Shopify's App Bridge provider:
 
 ```tsx
-// resources/js/layouts/app-shell.tsx
 import {
   FlashHttpInterceptor,
   FlashListener,
@@ -65,13 +49,15 @@ import {
   useNotices,
 } from "@sematico/shopify-flash";
 
-function NoticeBridge({ children }: { children: React.ReactNode }) {
+function FlashBridge({ children }: { children: React.ReactNode }) {
   const { add } = useNotices();
+
   return (
     <>
       <FlashListener onBanner={add} />
       <FlashHttpInterceptor />
       {children}
+      <NoticesContainer />
     </>
   );
 }
@@ -79,133 +65,119 @@ function NoticeBridge({ children }: { children: React.ReactNode }) {
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <NoticesProvider>
-      <NoticeBridge>
-        {children}
-        <NoticesContainer />
-      </NoticeBridge>
+      <FlashBridge>{children}</FlashBridge>
     </NoticesProvider>
   );
 }
 ```
 
-**3. Flash from a controller:**
+`FlashListener` consumes Inertia v3 flash events. `FlashHttpInterceptor` consumes `JsonResponse::withFlash()` response envelopes and supplies fallback notices for common HTTP errors. Mount each once.
+
+To add the Inertia flash type augmentation to your application, import the package's types from a declaration file you own:
+
+```ts
+// resources/js/types/shopify-flash.d.ts
+import "@sematico/shopify-flash/types";
+```
+
+## Backend usage
+
+Short success messages can be sent as a toast:
+
+```php
+return back()->withToast('File deleted');
+```
+
+Use a banner for errors, warnings, and longer messages:
+
+```php
+use Sematico\ShopifyFlash\Payloads\BannerPayload;
+
+return back()->withBanner(
+    BannerPayload::warning(
+        heading: 'Some products need attention',
+        description: 'Review the products before continuing.',
+    ),
+);
+```
+
+`withFlash()` accepts a `ToastPayload`, a `BannerPayload`, or a `FlashEnvelope` containing both:
 
 ```php
 use Sematico\ShopifyFlash\Http\FlashEnvelope;
 use Sematico\ShopifyFlash\Payloads\BannerPayload;
 use Sematico\ShopifyFlash\Payloads\ToastPayload;
 
-return back()->withToast('File deleted');
-
-return back()->withBanner(
-    BannerPayload::warning(
-        heading: '127 products missing shipping weights',
-        description: 'Products without weights may show inaccurate shipping rates, leading to checkout abandonment.',
-    )
-);
-
-// Or use the unified macro — accepts a ToastPayload, a BannerPayload, or a FlashEnvelope
-// carrying both. Same macro name on `JsonResponse` for XHR endpoints.
-return back()->withFlash(BannerPayload::critical('Boom'));
-
 return back()->withFlash(new FlashEnvelope(
     toast: ToastPayload::success('Saved'),
-    banner: BannerPayload::info('FYI'),
+    banner: BannerPayload::info('The import is still running.'),
 ));
 ```
 
-**4. Register named handlers (for action buttons that fire client-side functions):**
-
-```tsx
-import { useFlashHandlers } from "@sematico/shopify-flash";
-
-function ProductRow() {
-  const { register } = useFlashHandlers();
-
-  React.useEffect(() => {
-    return register("product.undo-delete", async ({ id }) => {
-      await router.post(`/admin/products/${id}/restore`);
-    });
-  }, [register]);
-}
-```
-
-Then from PHP:
+The same `withFlash()` macro is available on `JsonResponse`. It adds a `notice` object to the JSON body for `FlashHttpInterceptor`:
 
 ```php
-use Sematico\ShopifyFlash\Payloads\ToastAction;
-use Sematico\ShopifyFlash\Payloads\ToastPayload;
-
-return back()->withToast(
-    new ToastPayload(
-        message: 'Product deleted',
-        action: ToastAction::handler('Undo', 'product.undo-delete', ['id' => $product->id]),
-    )
+return response()->json(['ok' => false])->withFlash(
+    BannerPayload::critical('The upload could not be completed.'),
 );
 ```
 
-## Toasts and banners policy
+## Payloads and actions
 
-The package owns this policy table for all consuming Sematico apps. Consuming app `CLAUDE.md` / `AGENTS.md` files should defer to it.
+The PHP value objects mirror the TypeScript wire types:
 
-| Outcome | Surface |
-|---|---|
-| User-initiated success, ≤3 words, `[object] [action]` (e.g. "File deleted", "Product created") | `back()->withToast(...)` from the controller; renders as a Shopify App Bridge toast |
-| Errors, warnings, ≥4-word messages, anything not a fresh user-initiated success | `back()->withBanner(BannerPayload::critical|warning|info|success(...))` from the controller; renders as `<s-banner>` |
-| Backend XHR errors (4xx/5xx response data) | Return the JSON envelope: `response()->json(['ok' => false])->withFlash(BannerPayload::critical(...))`. The `FlashHttpInterceptor` routes the envelope into the notices context. |
-| Transport-level error with no response (`HttpNetworkError`) | Handled automatically by the package — single direct toast from the bridge, the one allowlisted exception |
-| Programmatic notice from React (sync flow, modal cleanup, etc.) | `useNotices().add(...)` — convenience methods `info()`, `success()`, `warning()`, `critical()` available |
+- `ToastPayload::success()` and `ToastPayload::error()` create App Bridge toasts.
+- `BannerPayload::info()`, `success()`, `warning()`, and `critical()` create Polaris banners.
+- `ToastAction::link()` creates a safe URL action.
+- `ToastAction::handler()` refers to a named client-side handler and accepts JSON-serializable parameters.
+- `BannerAction::link()` creates a safe URL action. A banner supports at most two actions.
+- `FlashEnvelope` carries a toast, a banner, or both.
 
-**Forbidden by policy:** direct `shopify.toast.show()` calls outside the package's bridge module. The bridge is the single sanctioned entry point. (Lint/test enforcement of this rule is deferred to v2 — see `Scope Boundaries` in the implementation plan.)
+Register a named handler in React before emitting a matching toast:
 
-**Drop "successfully" from any toast string.** "File deleted" — not "File deleted successfully".
+```tsx
+import { router } from "@inertiajs/react";
+import { useFlashHandlers } from "@sematico/shopify-flash";
 
-**Don't toast for in-place mutations the UI already shows.** A form save where the row updates inline doesn't need a toast; the visible state change IS the feedback. Reserve flash for cross-page outcomes.
+function ProductRow({ id }: { id: number }) {
+  const { register } = useFlashHandlers();
 
-### Toast vs banner — when each fits
+  React.useEffect(
+    () => register("product.restore", () => router.post(`/products/${id}/restore`)),
+    [id, register],
+  );
 
-- **Toast** is short, ephemeral, auto-dismisses, supports one optional action button. Best for: ≤3-word post-action confirmations, undo affordances, transient acknowledgments.
-- **Banner** is longer, persistent until dismissed (or non-dismissable for critical state), has a heading + body + up to two action buttons. Best for: errors, warnings, multi-step guidance, anything that needs to stay on screen.
+  return null;
+}
+```
 
-App Bridge's toast surface only supports two visual states (default success, `isError: true` red). Polaris's `<s-banner>` supports five tones (`info | success | warning | critical | auto`). The split in the package's two payload types reflects this rendering-layer constraint, not a conceptual model.
+For client-owned notices, use `useNotices()` or `useToast()` directly:
 
-## What the package does NOT do (v1 scope boundaries)
+```tsx
+const { warning } = useNotices();
+warning({ heading: "Check the selected products" });
 
-- **No multi-message queueing** per response — one toast and one banner per `Inertia::flash()` call. Use `router.flash({ banner })` client-side from broadcast handlers if more is needed.
-- **No i18n / intent codes** — payloads carry rendered strings. Backend resolves any translation server-side via `trans()`/`__()` before flashing.
-- **No background-job broadcast integration** as a package responsibility. Consumers who use Reverb/Echo dispatch via `router.flash()` from broadcast handlers; the package's listener renders both transports identically.
-- **No banner-with-spinner / progress-bar payload shape** — coupled to the Reverb track; lands when Reverb does (v2).
-- **No confirmation prompts (modal-shaped asks) and no sticky-info banners** — explicitly out, will not be added; consumers handle these cases manually.
-- **No closure-based actions** — actions must be JSON-serializable (link or named handler with `params`).
-- **No lint/test chokepoint** banning direct `shopify.toast.show()` calls — deferred to v2.
-- **No mutating-route flash assertion** in Pest — deferred to v2.
-- **No public Packagist / public npm release** — private only for v1.
+const { success } = useToast();
+success("File downloaded");
+```
+
+The package validates link actions and rejects unsafe URL schemes before navigation.
 
 ## Development
 
 ```bash
-composer install      # PHP deps
-npm install           # JS deps
-composer test         # Pest
-composer analyse      # Larastan
-composer format       # Pint
-npm run test          # Vitest
-npm run build         # tsup → dist/
-npm run typecheck     # tsc --noEmit
-npm run lint          # Biome
+composer install
+composer validate --strict
+composer test
+composer analyse
+composer format -- --test
+
+npm ci
+npm run typecheck
+npm run lint
+npm test
+npm run build
+npm pack --dry-run
 ```
 
-## Releases
-
-The git tag is the single source of truth for the version. To release:
-
-```bash
-git tag v0.0.1
-git push --tags
-```
-
-CI workflows (`.github/workflows/publish-composer.yml`, `.github/workflows/publish-npm.yml`) trigger on tags. The npm workflow sets `package.json.version` from the tag at publish time. Composer reads the version from the git tag directly (no `version` field in `composer.json`, per Composer's own schema docs).
-
-## License
-
-MIT — see [LICENSE.md](LICENSE.md).
+The npm package is built from `js/index.ts` into `dist/`. It publishes the compiled bundle, declarations, source TypeScript files, and the project documentation.

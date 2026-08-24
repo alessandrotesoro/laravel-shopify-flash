@@ -1,13 +1,13 @@
 {
   "name": "@sematico/shopify-flash",
-  "description": "Shared React + Inertia v3 client for Shopify App Bridge toast and Polaris s-banner UX, paired with sematico/laravel-shopify-flash on the backend.",
-  "version": "0.0.0",
+  "description": "Shared React + Inertia v3 client for Shopify App Bridge toasts and Polaris s-banner notices, paired with sematico/laravel-shopify-flash on the backend.",
+  "version": "0.0.2",
   "license": "MIT",
   "author": "Alessandro Tesoro <alessandro@levelogy.com>",
   "homepage": "https://github.com/alessandrotesoro/laravel-shopify-flash",
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/alessandrotesoro/laravel-shopify-flash.git"
+    "url": "https://github.com/alessandrotesoro/laravel-shopify-flash.git"
   },
   "type": "module",
   "main": "./dist/index.js",
@@ -54,19 +54,22 @@
     "@shopify/app-bridge-react": "^4.0.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.2.3",
     "happy-dom": "^20.9.0",
     "react": "^19.0.0",
     "react-dom": "^19.2.5",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.0",
     "vitest": "^4.1.5"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
-    "@braintree/sanitize-url": "^7.1.2",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.2.3",
-    "tsup": "^8.3.5",
-    "typescript": "^5.7.0"
+    "@braintree/sanitize-url": "^7.1.2"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
